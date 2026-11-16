@@ -1,0 +1,73 @@
+name: Native platforms
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned SDL
+        run: python3 tools/fetch_sdl.py
+      - name: Build app bundle
+        run: |
+          cmake -S npe-sdl -B build -DBUILD_TESTING=OFF -DNPE_BUNDLED_SDL=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }}
+          cmake --build build --parallel 3
+          cmake --install build --prefix dist
+          cp LICENSE dist/LICENSE
+          cp NOTICE.md dist/NOTICE.md
+          codesign --force --deep --sign - dist/NoahNPE.app
+      - name: Validate bundle and NPE loader
+        run: |
+          python3 tools/platform_smoke.py --binary dist/NoahNPE.app/Contents/MacOS/NoahNPE --bundle dist/NoahNPE.app
+          otool -L dist/NoahNPE.app/Contents/MacOS/NoahNPE
+          codesign --verify --deep --strict dist/NoahNPE.app
+          ditto -c -k --sequesterRsrc --keepParent dist noah-npe-engine-macos-${{ matrix.arch }}.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: noah-npe-engine-macos-${{ matrix.arch }}.zip
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - run: python3 tools/fetch_sdl.py
+      - name: Install Android toolchain
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.2.12479018' 'cmake;3.22.1'
+      - name: Build APK (ARM64 and x86_64)
+        run: gradle -p android assembleDebug --no-daemon
+      - name: Check packaged libraries and fonts
+        run: python3 tools/platform_smoke.py --apk android/app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+  input:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
+      - run: |
+          cmake -S npe-sdl -B build -DBUILD_TESTING=ON
+          cmake --build build --target mobile-input-probe --parallel 2
+          ctest --test-dir build -R '^mobile-input$' --output-on-failure

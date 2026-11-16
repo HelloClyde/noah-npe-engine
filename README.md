@@ -12,6 +12,10 @@ v0.1.4 修正走路动画节奏：按原固件64Hz公共时基等待后提交每
 
 支持键盘和标准手柄；手柄 Start 打开按键说明。游戏文件需自行提供。
 
+## macOS 与安卓
+
+已增加 macOS 应用包和安卓 APK 构建入口，使用同一套 C＋SDL2 游戏核心。macOS 支持 Apple Silicon／Intel；安卓支持 NPE 文件导入、屏幕按键和实体手柄。构建方法、验证范围及限制见 [平台说明](docs/platforms.md)。自动构建产物见 GitHub Actions 的 `Native platforms`。
+
 ## 游戏截图
 
 以下为当前 C＋SDL 程序实际渲染的《天降风云 V1.3》画面。战斗图通过内置战斗预览入口获取。

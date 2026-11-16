@@ -1,6 +1,10 @@
 # A production installation has the same layout as the build directory:
 # the executable and its native font assets share one base directory.
-install(TARGETS npe-sdl RUNTIME DESTINATION .)
+if(APPLE)
+  install(TARGETS npe-sdl BUNDLE DESTINATION .)
+else()
+  install(TARGETS npe-sdl RUNTIME DESTINATION .)
+endif()
 install(FILES
   "${CMAKE_CURRENT_SOURCE_DIR}/assets/gbk12-native.bin"
   "${CMAKE_CURRENT_SOURCE_DIR}/assets/gbk16-native.bin"

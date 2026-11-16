@@ -10,6 +10,10 @@
 #include <commdlg.h>
 #endif
 #include "controller_input.inc"
+#include "mobile_input.inc"
+#ifdef __APPLE__
+char *npe_macos_choose_game(void);
+#endif
 #include "windows_menu.inc"
 
 /* 47:536A..5494 routes I/J/K/L/M (both cases) to the same services as
@@ -38,7 +42,7 @@ static int game_audio_event(const SDL_Event *event){
 static void show_controller_help(void);
 static int game_PollEvent(SDL_Event *event){
     (void)npe_sound_pump(game_sound_player);
-    while(SDL_PollEvent(event))if(!game_audio_event(event)&&game_pad_event(event))return 1;
+    while(SDL_PollEvent(event))if(game_mobile_event(event)&&!game_audio_event(event)&&game_pad_event(event))return 1;
     return game_pad_repeat(event);
 }
 static int game_wait_event_timeout(SDL_Event *event,int timeout,const char *caller){
@@ -46,7 +50,7 @@ static int game_wait_event_timeout(SDL_Event *event,int timeout,const char *call
     (void)caller;
     if(!game_pad && (!game_sound_player || !game_sound_player->device)){
         int got=SDL_WaitEventTimeout(event,timeout);
-        if(!got || game_pad_event(event))return got;
+        if(!got || (game_mobile_event(event) && !game_audio_event(event) && game_pad_event(event)))return got;
     }
     Uint32 start=SDL_GetTicks();
     for(;;){
@@ -59,7 +63,7 @@ static int game_wait_event_timeout(SDL_Event *event,int timeout,const char *call
         }
         int slice=remaining<0 || remaining>10?10:remaining;
         int got=SDL_WaitEventTimeout(event,slice);
-        if(got && !game_audio_event(event) && game_pad_event(event))return 1;
+        if(got && game_mobile_event(event) && !game_audio_event(event) && game_pad_event(event))return 1;
         if(!got && game_pad_repeat(event))return 1;
         if(timeout>=0 && (SDL_GetTicks()-start>=(Uint32)timeout || (!got && remaining==slice)))return 0;
     }
@@ -84,15 +88,20 @@ static char *gbk_to_utf8(const uint8_t *bytes, size_t size) {
 }
 
 static int load_native_fonts(NpeFont *font) {
+    #ifdef __ANDROID__
+    const char *internal=SDL_AndroidGetInternalStoragePath();
+    char *base=internal?SDL_strdup(internal):NULL;
+#else
     char *base=SDL_GetBasePath();
+#endif
     if(!base){fprintf(stderr,"cannot locate native font assets: %s\n",SDL_GetError());return -1;}
-    size_t length=strlen(base)+sizeof("assets/gbk12-native.bin");
+    size_t length=strlen(base)+sizeof("/assets/gbk12-native.bin");
     char *path=malloc(length);
     if(!path){SDL_free(base);fprintf(stderr,"cannot allocate native font path\n");return -1;}
-    snprintf(path,length,"%sassets/gbk12-native.bin",base);
+    snprintf(path,length,"%s/assets/gbk12-native.bin",base);
     int result=npe_font_load(font,path);
     if(!result){
-        snprintf(path,length,"%sassets/gbk16-native.bin",base);
+        snprintf(path,length,"%s/assets/gbk16-native.bin",base);
         result=npe_font_load16(font,path);
     }
     if(result)fprintf(stderr,"required native bitmap font unavailable: %s\n",path);
@@ -4322,6 +4331,14 @@ done:
 }
 
 int main(int argc, char **argv) {
+#ifdef __APPLE__
+    if(argc==1){
+        char *selected=npe_macos_choose_game();
+        if(!selected)return 0;
+        char *args[]={argv[0],selected,NULL};
+        int result=run(2,args);free(selected);return result;
+    }
+#endif
 #ifdef _WIN32
     char *selected=NULL;
     if(argc==1){selected=desktop_choose_game(NULL);if(!selected)return 0;}

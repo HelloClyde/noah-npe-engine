@@ -13,3 +13,9 @@
 *.dll
 .env
 .env.*
+
+/vendor/
+/android/.gradle/
+/android/local.properties
+/android/**/build/
+/android/**/.cxx/
