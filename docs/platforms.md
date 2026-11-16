@@ -55,3 +55,5 @@ gradle -p android assembleDebug
 这些检查不等于完整真机游玩。真机文件选择、触屏布局、后台恢复和音频仍需分别在目标设备上验证。
 
 参考：[SDL2 安卓移植说明](https://wiki.libsdl.org/SDL2/README-android)、[SDL2 macOS 移植说明](https://wiki.libsdl.org/SDL2/README-macos)、[Android 系统文件选择](https://developer.android.com/training/data-storage/shared/documents-files)。
+
+本次通过的原生构建：[CI 43786777102](https://github.com/HelloClyde/noah-npe-engine/actions/runs/43786777102)（代码 `ff43f20`）。macOS 两种架构均完成包内字体、解析入口和签名校验；安卓两种架构均编译成功并完成包内容检查。Windows 也完成编译、触屏映射与原有行走计时回归。成品见 [v0.2.0](https://github.com/HelloClyde/noah-npe-engine/releases/tag/v0.2.0)。
