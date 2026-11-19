@@ -104,7 +104,7 @@ static int game_view_present(SDL_Renderer *renderer,const uint8_t *native){
             top=game_view_world->text_rect[1];bottom=game_view_world->text_rect[3];
         }
         unsigned h=bottom-top+1;
-        unsigned y=height-h-4;
+        unsigned y=height>=h+4?height-h-4:0;
         memset(game_view_pixels+(size_t)y*width,0,(size_t)width*h);
         game_view_blit(native,0,(int)top,NPE_WIDTH,(int)h,width>=NPE_WIDTH+8?4:0,(int)y);
     }else if(menu){
@@ -113,7 +113,8 @@ static int game_view_present(SDL_Renderer *renderer,const uint8_t *native){
             int first=NPE_WIDTH,last=-1;
             for(unsigned x=0;x<NPE_WIDTH;++x)
                 if(!mask[y*NPE_WIDTH+x] && native[y*NPE_WIDTH+x]!=game_view_menu_base[y*NPE_WIDTH+x]){
-                    if((int)x<first)first=(int)x;last=(int)x;
+                    if((int)x<first)first=(int)x;
+                    last=(int)x;
                 }
             if(last>=first)memset(mask+y*NPE_WIDTH+first,1,(size_t)(last-first+1));
         }
