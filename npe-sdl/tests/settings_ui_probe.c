@@ -1,3 +1,4 @@
+#define NPE_SETTINGS_SDL_TEST
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
 #include <assert.h>

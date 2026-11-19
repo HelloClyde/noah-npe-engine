@@ -73,3 +73,24 @@ jobs:
           cmake -S npe-sdl -B build -DBUILD_TESTING=ON
           cmake --build build --target mobile-input-probe settings-probe settings-ui-probe --parallel 2
           ctest --test-dir build -R '^(mobile-input|settings|settings-ui)$' --output-on-failure
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-SDL2
+      - name: Build and verify native Windows controls
+        shell: msys2 {0}
+        run: |
+          cmake -S npe-sdl -B build -G Ninja -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --target npe-sdl native-settings-probe settings-probe --parallel 3
+          ctest --test-dir build -R '^(native-settings|settings)$' --output-on-failure
+          cpack --config build/CPackConfig.cmake -B dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: dist/noah-npe-engine-*-windows-x64.zip

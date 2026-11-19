@@ -46,6 +46,11 @@ static int game_audio_event(const SDL_Event *event){
 static void show_controller_help(void);
 static void show_settings(void);
 static void show_settings_page(unsigned);
+static void request_settings_page(unsigned page){
+    SDL_Event event;SDL_zero(event);event.type=SDL_USEREVENT;
+    event.user.code=0x4e504553;event.user.data1=(void *)(uintptr_t)page;
+    SDL_PushEvent(&event);
+}
 static int game_host_event(SDL_Event *event){
     if(event->type==SDL_USEREVENT && event->user.code==0x4e504553){
         show_settings_page((unsigned)(uintptr_t)event->user.data1);return 0;
@@ -3551,7 +3556,7 @@ static int run(int argc, char **argv) {
     window = SDL_CreateWindow("诺亚舟-NPE-引擎", SDL_WINDOWPOS_CENTERED,
                               SDL_WINDOWPOS_CENTERED, 960, 480, SDL_WINDOW_RESIZABLE);
     if (!window) goto sdl_error;
-    desktop_settings_callback=show_settings_page;
+    desktop_settings_callback=request_settings_page;
 #ifdef __APPLE__
     npe_macos_settings_menu();
 #endif
@@ -4370,7 +4375,9 @@ int main(int argc, char **argv) {
 #ifndef __ANDROID__
     if(argc==2 && !strcmp(argv[1],"--settings")){
         if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMECONTROLLER))return 1;
-        settings_load();game_pad_open();show_settings();game_pad_close();SDL_Quit();return 0;
+        settings_load();game_pad_open();show_settings();game_pad_close();SDL_Quit();
+        if(!settings_last_saved)return 0;
+        argc=1; /* Saving standalone preferences continues into game selection. */
     }
 #endif
 #ifdef __APPLE__

@@ -116,7 +116,14 @@ static LRESULT CALLBACK desktop_window_proc(HWND hwnd,UINT message,WPARAM wparam
 static int desktop_menu_attach(SDL_Window *window){
     SDL_SysWMinfo info;SDL_VERSION(&info.version);
     if(!SDL_GetWindowWMInfo(window,&info) || info.subsystem!=SDL_SYSWM_WINDOWS)return 0;
-    HWND hwnd=info.info.win.window;HMENU bar=CreateMenu(),file=CreatePopupMenu(),about=CreatePopupMenu(),options=CreatePopupMenu();
+    HWND hwnd=info.info.win.window;
+    HICON large=(HICON)LoadImageW(GetModuleHandleW(NULL),MAKEINTRESOURCEW(101),IMAGE_ICON,
+        GetSystemMetrics(SM_CXICON),GetSystemMetrics(SM_CYICON),LR_SHARED);
+    HICON small=(HICON)LoadImageW(GetModuleHandleW(NULL),MAKEINTRESOURCEW(101),IMAGE_ICON,
+        GetSystemMetrics(SM_CXSMICON),GetSystemMetrics(SM_CYSMICON),LR_SHARED);
+    if(large)SendMessageW(hwnd,WM_SETICON,ICON_BIG,(LPARAM)large);
+    if(small)SendMessageW(hwnd,WM_SETICON,ICON_SMALL,(LPARAM)small);
+    HMENU bar=CreateMenu(),file=CreatePopupMenu(),about=CreatePopupMenu(),options=CreatePopupMenu();
     if(!bar||!file||!about||!options){if(options)DestroyMenu(options);if(bar)DestroyMenu(bar);if(file)DestroyMenu(file);if(about)DestroyMenu(about);return -1;}
     AppendMenuW(file,MF_STRING,DESKTOP_OPEN,L"\u6253\u5f00 NPE...(&O)");
     AppendMenuW(file,MF_SEPARATOR,0,NULL);AppendMenuW(file,MF_STRING,DESKTOP_EXIT,L"\u9000\u51fa(&X)");

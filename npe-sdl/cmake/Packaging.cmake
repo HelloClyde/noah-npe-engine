@@ -9,6 +9,7 @@ install(FILES
   "${CMAKE_CURRENT_SOURCE_DIR}/assets/gbk12-native.bin"
   "${CMAKE_CURRENT_SOURCE_DIR}/assets/gbk16-native.bin"
   "${CMAKE_CURRENT_SOURCE_DIR}/assets/FONT-PROVENANCE.txt"
+  "${CMAKE_CURRENT_SOURCE_DIR}/assets/FONT-LICENSE.txt"
   DESTINATION assets)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/PORTABLE.md"
   DESTINATION . RENAME README.md)
@@ -53,3 +54,5 @@ set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_PACKAGE_FILE_NAME "noah-npe-engine-${PROJECT_VERSION}-${npe_package_system}-${npe_package_architecture}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Standalone C11 and SDL2 NPE runtime")
 include(CPack)
+
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE" "${CMAKE_CURRENT_SOURCE_DIR}/../NOTICE.md" DESTINATION licenses)

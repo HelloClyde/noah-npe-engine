@@ -6,6 +6,7 @@
   <key>CFBundleName</key><string>诺亚舟-NPE-引擎</string>
   <key>CFBundleDisplayName</key><string>诺亚舟-NPE-引擎</string>
   <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleIconFile</key><string>app.icns</string>
   <key>CFBundleShortVersionString</key><string>@PROJECT_VERSION@</string>
   <key>CFBundleVersion</key><string>@PROJECT_VERSION@</string>
   <key>NSHighResolutionCapable</key><true/>

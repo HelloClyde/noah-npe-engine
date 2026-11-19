@@ -3,12 +3,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
-enum { SETTINGS_KEYS=10, SETTINGS_BUTTONS=11 };
-typedef struct {
-    SDL_Keycode keys[SETTINGS_KEYS];
-    Uint8 buttons[SETTINGS_BUTTONS];
-    unsigned rows,cols; /* Both zero selects the original 240x120 LCD. */
-} NpeSettings;
+#include "platform/settings_types.h"
 static const SDL_Keycode settings_default_keys[SETTINGS_KEYS]={SDLK_UP,SDLK_DOWN,
     SDLK_LEFT,SDLK_RIGHT,SDLK_RETURN,SDLK_F4,SDLK_SPACE,SDLK_u,SDLK_p,SDLK_n};
 static const Uint8 settings_default_buttons[SETTINGS_BUTTONS]={
@@ -19,6 +14,7 @@ static const Uint8 settings_default_buttons[SETTINGS_BUTTONS]={
     SDL_CONTROLLER_BUTTON_RIGHTSHOULDER,SDL_CONTROLLER_BUTTON_START};
 static NpeSettings settings;
 static int settings_loaded;
+static int settings_last_saved;
 static void settings_defaults(NpeSettings *value){
     memset(value,0,sizeof(*value));
     memcpy(value->keys,settings_default_keys,sizeof(value->keys));

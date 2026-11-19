@@ -1,3 +1,23 @@
+#if (defined(_WIN32) || defined(__APPLE__)) && !defined(NPE_SETTINGS_SDL_TEST)
+#include "settings_native_bridge.inc"
+#ifdef _WIN32
+#include "settings_windows.inc"
+#endif
+static void show_settings_page(unsigned page){
+    settings_last_saved=0;settings_load();NpeSettings edited=settings;SDL_Window *parent=SDL_GetKeyboardFocus();
+    game_pad_reset();int accepted;
+#ifdef _WIN32
+    accepted=settings_windows_dialog(&edited,page);
+#else
+    NpeSettingsHooks hooks={settings_defaults,settings_bind_key,settings_bind_button,settings_native_poll_button};
+    accepted=npe_macos_settings_dialog(&edited,page,&hooks);
+#endif
+    if(accepted && !settings_native_commit(&edited,parent))settings_last_saved=1;
+    game_pad_reset();
+    if(parent){SDL_RaiseWindow(parent);SDL_Event event;SDL_zero(event);event.type=SDL_WINDOWEVENT;
+        event.window.windowID=SDL_GetWindowID(parent);event.window.event=SDL_WINDOWEVENT_EXPOSED;SDL_PushEvent(&event);}
+}
+#else
 /* A separate SDL window leaves the game's original LCD/frame caches intact. */
 static void settings_ui_text(SDL_Renderer *renderer,SDL_Texture *texture,
     const NpeFont *font,const char *text,int x,int y){
@@ -140,11 +160,14 @@ static void show_settings_page(unsigned tab){
     }
     if(settings_save(&edited))SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,
         "Noah NPE", "Cannot save settings. Previous settings were retained.",window);
-    else settings=edited;
+    else {settings=edited;settings_last_saved=1;}
     game_pad_reset();SDL_DestroyTexture(texture);SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);npe_font_free(&font);
     if(parent){SDL_RaiseWindow(parent);SDL_Event event;SDL_zero(event);event.type=SDL_WINDOWEVENT;
         event.window.windowID=SDL_GetWindowID(parent);event.window.event=SDL_WINDOWEVENT_EXPOSED;SDL_PushEvent(&event);}
 #endif
 }
+
+
+#endif
 static void show_settings(void){show_settings_page(0);}

@@ -12,6 +12,7 @@ p.add_argument('--bundle', type=Path)
 p.add_argument('--apk', type=Path)
 a = p.parse_args()
 if a.bundle:
+    assert (a.bundle / "Contents/Resources/app.icns").is_file(), "app icon"
     for font in ('gbk12-native.bin', 'gbk16-native.bin'):
         assert (a.bundle / 'Contents/Resources/assets' / font).is_file(), font
 if a.binary:
@@ -29,6 +30,7 @@ if a.binary:
 if a.apk:
     with zipfile.ZipFile(a.apk) as archive:
         names = set(archive.namelist())
+        assert any(n.startswith('res/mipmap-') and n.endswith('/ic_launcher.png') for n in names), 'launcher icon'
         for abi in ('arm64-v8a', 'x86_64'):
             for library in ('libmain.so', 'libSDL2.so'):
                 assert f'lib/{abi}/{library}' in names, (abi, library)
