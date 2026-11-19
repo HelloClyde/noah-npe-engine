@@ -2,6 +2,7 @@ static int settings_native_poll_button(void){
     (void)npe_sound_pump(game_sound_player);
     SDL_Event event;
     while(SDL_PollEvent(&event)){
+        (void)game_input_gate_event(&event);
         if(event.type==SDL_QUIT){SDL_PushEvent(&event);return -2;}
         if(game_audio_event(&event))continue;
         if(event.type==SDL_CONTROLLERDEVICEADDED || event.type==SDL_CONTROLLERDEVICEREMOVED){

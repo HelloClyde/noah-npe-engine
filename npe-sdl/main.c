@@ -12,6 +12,7 @@
 #include "settings.inc"
 #define NPE_CONTROLLER_BUTTON_MAP(button) settings_pad_button(button)
 #include "controller_input.inc"
+#include "input_gate.inc"
 #include "mobile_input.inc"
 #include "view_display.inc"
 #ifdef __APPLE__
@@ -61,12 +62,15 @@ static int game_host_event(SDL_Event *event){
             return 0;
         }
         event->key.keysym.sym=settings_keyboard(event->key.keysym.sym,game_pad_mode?*game_pad_mode:0);
+        if(event->type==SDL_KEYDOWN && event->key.repeat &&
+           (event->key.keysym.sym==SDLK_RETURN || event->key.keysym.sym==SDLK_KP_ENTER ||
+            (event->key.keysym.sym==SDLK_k && (!game_pad_mode || *game_pad_mode!=8))))return 0;
     }
     return 1;
 }
 static int game_PollEvent(SDL_Event *event){
     (void)npe_sound_pump(game_sound_player);
-    while(SDL_PollEvent(event))if(game_host_event(event)&&game_mobile_event(event)&&!game_audio_event(event)&&game_pad_event(event))return 1;
+    while(SDL_PollEvent(event))if(game_input_gate_event(event)&&game_host_event(event)&&game_mobile_event(event)&&!game_audio_event(event)&&game_pad_event(event))return 1;
     return game_pad_repeat(event);
 }
 static int game_wait_event_timeout(SDL_Event *event,int timeout,const char *caller){
@@ -74,7 +78,7 @@ static int game_wait_event_timeout(SDL_Event *event,int timeout,const char *call
     (void)caller;
     if(!game_pad && (!game_sound_player || !game_sound_player->device)){
         int got=SDL_WaitEventTimeout(event,timeout);
-        if(!got || (game_host_event(event) && game_mobile_event(event) && !game_audio_event(event) && game_pad_event(event)))return got;
+        if(!got || (game_input_gate_event(event) && game_host_event(event) && game_mobile_event(event) && !game_audio_event(event) && game_pad_event(event)))return got;
     }
     Uint32 start=SDL_GetTicks();
     for(;;){
@@ -87,7 +91,7 @@ static int game_wait_event_timeout(SDL_Event *event,int timeout,const char *call
         }
         int slice=remaining<0 || remaining>10?10:remaining;
         int got=SDL_WaitEventTimeout(event,slice);
-        if(got && game_host_event(event) && game_mobile_event(event) && !game_audio_event(event) && game_pad_event(event))return 1;
+        if(got && game_input_gate_event(event) && game_host_event(event) && game_mobile_event(event) && !game_audio_event(event) && game_pad_event(event))return 1;
         if(!got && game_pad_repeat(event))return 1;
         if(timeout>=0 && (SDL_GetTicks()-start>=(Uint32)timeout || (!got && remaining==slice)))return 0;
     }
@@ -97,12 +101,15 @@ static int game_WaitEvent(SDL_Event *event){
     return game_wait_event_timeout(event,-1,"game_WaitEvent");
 }
 static void game_Delay(Uint32 milliseconds){
-    if(!game_sound_player || !game_sound_player->device){SDL_Delay(milliseconds);return;}
+    game_input_drain_busy();
+    if(game_input_busy && game_input_quit_pending)return;
+    if(!game_input_busy && (!game_sound_player || !game_sound_player->device)){SDL_Delay(milliseconds);return;}
     (void)npe_sound_pump(game_sound_player);
     if(!milliseconds){SDL_Delay(0);return;}
     while(milliseconds){
         Uint32 slice=milliseconds>10?10:milliseconds;
         SDL_Delay(slice);milliseconds-=slice;
+        game_input_drain_busy();if(game_input_busy && game_input_quit_pending)break;
         (void)npe_sound_pump(game_sound_player);
     }
 }
@@ -2216,6 +2223,8 @@ static int advance_world_events_dispatch(SDL_Window *window, SDL_Renderer *rende
     int closed_dialogue=0;
     unsigned last_service_mode=0;
     if(previous_mode==3 && world->game_mode!=3){
+        game_input_fence();
+        if(world->game_mode==7)game_title_input_fence_pending=1;
         /* 33:C28E clears the retained plane after victory panels;
            33:BCD2 and 2F:C12E do the same on loss and successful flee.
            Map initialization must inherit these cleared margin rows. */
@@ -2340,6 +2349,7 @@ static int advance_world_events_dispatch(SDL_Window *window, SDL_Renderer *rende
     }
     if(event_chain_quit_requested())return -2;
     if(previous_mode==3 && world->game_mode==7){
+        game_input_fence();game_title_input_fence_pending=1;
         /* The title controller clears its plane before its first frame.
            This is separate from the loss clear at33:BCD6. */
         uint8_t cleared[NPE_WIDTH*NPE_HEIGHT]={0};
@@ -2643,7 +2653,7 @@ static void apply_battle_enemy_pointer_clears(const NpeWorld *world,uint8_t *pix
         if(d->pointer_clear_mask&(1u<<target))npe_clear_battle_enemy_target(world,target,pixels);
 }
 
-static void play_battle_animation(void *context, const NpeWorld *world,
+static void play_battle_animation_frame(void *context, const NpeWorld *world,
                                   unsigned action, unsigned target,
                                   unsigned phase) {
     BattleAnimationDisplay *display=context;
@@ -2926,6 +2936,13 @@ static void play_battle_animation(void *context, const NpeWorld *world,
     if(play_battle_role_group(display,world->battle_file,15,
         npe_world_battle_coordinate(world,1,target,0),
         npe_world_battle_coordinate(world,1,target,1),pixels,0,1,0))return;
+}
+
+static void play_battle_animation(void *context,const NpeWorld *world,
+    unsigned action,unsigned target,unsigned phase){
+    game_input_begin();
+    play_battle_animation_frame(context,world,action,target,phase);
+    game_input_end();
 }
 
 static int draw_battle_animation_commands(SDL_Renderer *renderer, SDL_Texture *texture,
@@ -3276,6 +3293,7 @@ static int game_world_step_display(const NpeFile *file,NpeWorld *world,
 }
 
 static int run(int argc, char **argv) {
+    game_input_reset();
     game_sound_player=NULL;
     world_map_frame_valid=0;
     world_map_frame_uncommitted=0;
@@ -3719,6 +3737,9 @@ static int run(int argc, char **argv) {
             }
         } else draw_bitmap(renderer, texture, &file, section, index);
         if(walk_preview)displayed_mode=world.game_mode;
+        if(walk_preview && world.game_mode==7 && game_title_input_fence_pending){
+            game_input_fence();game_title_input_fence_pending=0;
+        }
         {
             int wait_ms = animation_preview && animation_playing ? 120 : -1;
             if (walk_preview) {

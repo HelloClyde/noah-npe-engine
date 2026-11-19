@@ -13,7 +13,7 @@ static void show_settings_page(unsigned page){
     accepted=npe_macos_settings_dialog(&edited,page,&hooks);
 #endif
     if(accepted && !settings_native_commit(&edited,parent))settings_last_saved=1;
-    game_pad_reset();
+    game_pad_reset();game_input_fence();
     if(parent){SDL_RaiseWindow(parent);SDL_Event event;SDL_zero(event);event.type=SDL_WINDOWEVENT;
         event.window.windowID=SDL_GetWindowID(parent);event.window.event=SDL_WINDOWEVENT_EXPOSED;SDL_PushEvent(&event);}
 }
