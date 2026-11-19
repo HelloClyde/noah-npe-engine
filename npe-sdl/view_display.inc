@@ -23,8 +23,10 @@ static int game_view_present(SDL_Renderer *renderer,const uint8_t *native){
     if(!settings.rows || !game_view_playing || !*game_view_playing ||
        !game_view_file || !game_view_world)return 0;
     unsigned mode=game_view_world->game_mode;
-    int overlay=mode==2||mode==4||mode==5||mode==6||mode==8;
-    if(mode!=1&&!overlay)return 0;
+    /* Map-related popups and scripted UI share the configured canvas.
+       Battle/title have independent screens rather than a map backdrop. */
+    if(mode==3||mode==7||!game_view_world->map_number)return 0;
+    int overlay=mode!=1;
     /* Retain the LCD's four-pixel margins around N complete tile rows.
        This also leaves room for the last line/border of a native dialogue. */
     unsigned width=settings.cols*16,height=settings.rows*16+8;

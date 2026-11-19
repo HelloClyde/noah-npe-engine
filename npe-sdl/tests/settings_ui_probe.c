@@ -71,7 +71,7 @@ int main(int argc,char **argv){
         uint8_t dialogue[NPE_WIDTH*NPE_HEIGHT];memcpy(dialogue,native,sizeof(dialogue));
         const uint8_t text[]="Dialogue keeps the expanded map.";
         assert(!npe_render_gbk_dialogue(&font,text,sizeof(text)-1,0,dialogue));npe_font_free(&font);
-        const unsigned overlay_modes[]={2,4,5,6,8};
+        const unsigned overlay_modes[]={2,4,5,6,8,13,17,22};
         for(unsigned step=0;step<sizeof(overlay_modes)/sizeof(overlay_modes[0]);++step){
             unsigned mode=overlay_modes[step];
                         world->game_mode=(uint16_t)mode;
