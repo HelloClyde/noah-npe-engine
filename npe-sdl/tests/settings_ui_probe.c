@@ -69,24 +69,55 @@ int main(int argc,char **argv){
         uint8_t *map_before=malloc(400*232);assert(map_before);memcpy(map_before,game_view_pixels,400*232);
         NpeFont font={0};assert(!load_native_fonts(&font));
         uint8_t dialogue[NPE_WIDTH*NPE_HEIGHT];memcpy(dialogue,native,sizeof(dialogue));
-        const uint8_t text[]="Dialogue keeps the expanded map.";
-        assert(!npe_render_gbk_dialogue(&font,text,sizeof(text)-1,0,dialogue));npe_font_free(&font);
-        const unsigned overlay_modes[]={2,4,5,6,8,13,17,22};
-        for(unsigned step=0;step<sizeof(overlay_modes)/sizeof(overlay_modes[0]);++step){
-            unsigned mode=overlay_modes[step];
-                        world->game_mode=(uint16_t)mode;
-            uint8_t shown[NPE_WIDTH*NPE_HEIGHT];memcpy(shown,mode==6?native:dialogue,sizeof(shown));
-            if(mode==6)npe_render_system_menu_overlay(&file,world,0,shown);
-            draw_pixels(renderer,texture,shown);
-            SDL_RenderGetLogicalSize(renderer,&width,&height);assert(width==400&&height==232);
-            for(int y=0;y<232;++y)for(int x=0;x<400;++x){
-                if(x>=dx&&x<dx+NPE_WIDTH&&y>=dy&&y<dy+NPE_HEIGHT)
-                    assert(game_view_pixels[y*400+x]==shown[(y-dy)*NPE_WIDTH+x-dx]);
-                else assert(game_view_pixels[y*400+x]==map_before[y*400+x]);
+        const uint8_t text[]={0xa1,0xb0,0xbf,0xda,0xc4,0xc8,0xa1,0xad,0xa1,0xad,0xa1,0xb1};
+        memset(dialogue+84*NPE_WIDTH,0,35*NPE_WIDTH);
+        assert(!npe_draw_gbk_text16_color(&font,text,sizeof(text),0,84,15,dialogue));
+        world->game_mode=2;draw_pixels(renderer,texture,dialogue);
+        SDL_RenderGetLogicalSize(renderer,&width,&height);assert(width==400&&height==232);
+        unsigned dialogue_y=232-(118-84+1)-4;
+        for(unsigned y=0;y<232;++y)for(unsigned x=0;x<400;++x){
+            uint8_t expected=map_before[y*400+x];
+            if(y>=dialogue_y&&y<dialogue_y+35){
+                expected=0;
+                if(x>=4&&x<244)expected=dialogue[(84+y-dialogue_y)*NPE_WIDTH+x-4];
             }
+            assert(game_view_pixels[y*400+x]==expected);
         }
-        free(map_before);
-        puts("Dialogue/menus: expanded dimensions and background retained; complete native UI/bottom border preserved");
+        SDL_Surface *overlay_image=SDL_CreateRGBSurfaceWithFormat(0,400,232,32,SDL_PIXELFORMAT_ARGB8888);assert(overlay_image);
+        assert(!SDL_RenderReadPixels(renderer,NULL,SDL_PIXELFORMAT_ARGB8888,overlay_image->pixels,overlay_image->pitch));
+        snprintf(path,sizeof(path),"%sexpanded-dialogue.bmp",test_folder);assert(!SDL_SaveBMP(overlay_image,path));
+        world->game_mode=6;world->property_page=0;
+        uint8_t shown[NPE_WIDTH*NPE_HEIGHT];memcpy(shown,native,sizeof(shown));
+        npe_render_system_menu_overlay(&file,world,0,shown);
+        assert(!npe_render_native_menu_money(&file,&font,world,shown));
+        game_view_menu_layer(&file,native,0,0,0);draw_pixels(renderer,texture,shown);
+        for(unsigned y=0;y<232;++y)for(unsigned x=0;x<400;++x){
+            uint8_t expected=map_before[y*400+x];
+            if(x>=4&&x<244&&y>=4&&y<124&&game_view_menu_mask[(y-4)*NPE_WIDTH+x-4])
+                expected=shown[(y-4)*NPE_WIDTH+x-4];
+            assert(game_view_pixels[y*400+x]==expected);
+        }
+        assert(!SDL_RenderReadPixels(renderer,NULL,SDL_PIXELFORMAT_ARGB8888,overlay_image->pixels,overlay_image->pitch));
+        snprintf(path,sizeof(path),"%sexpanded-menu.bmp",test_folder);assert(!SDL_SaveBMP(overlay_image,path));
+        npe_render_system_submenu_overlay(&file,world,2,shown);
+        game_view_menu_layer(&file,native,3,1,0);draw_pixels(renderer,texture,shown);
+        for(unsigned y=0;y<NPE_HEIGHT;++y)for(unsigned x=0;x<NPE_WIDTH;++x)
+            if(game_view_menu_mask[y*NPE_WIDTH+x])assert(game_view_pixels[(y+4)*400+x+4]==shown[y*NPE_WIDTH+x]);
+        const unsigned overlay_modes[]={4,8,13,17,22};
+        for(unsigned step=0;step<sizeof(overlay_modes)/sizeof(overlay_modes[0]);++step){
+            world->game_mode=(uint16_t)overlay_modes[step];draw_pixels(renderer,texture,dialogue);
+            SDL_RenderGetLogicalSize(renderer,&width,&height);assert(width==400&&height==232);
+            for(int y=0;y<NPE_HEIGHT;++y)for(int x=0;x<NPE_WIDTH;++x)
+                assert(game_view_pixels[(y+56)*400+x+80]==dialogue[y*NPE_WIDTH+x]);
+        }
+        SDL_FreeSurface(overlay_image);free(map_before);npe_font_free(&font);
+        settings.rows=7;settings.cols=15;world->game_mode=1;draw_pixels(renderer,texture,native);
+        world->game_mode=6;game_view_menu_layer(&file,native,3,1,1);
+        const unsigned levels[]={1,2,3};assert(!npe_render_save_slots_overlay(&file,105,46,levels,0,NULL,shown));
+        draw_pixels(renderer,texture,shown);
+        assert(game_view_pixels[119*240+176]==shown[119*240+176]);
+        settings.rows=14;settings.cols=25;
+        puts("Expanded UI: menu anchored to viewport, map outside panels retained, dialogue full-width at bottom, independent panels centered");
         world->game_mode=3;draw_pixels(renderer,texture,native);SDL_RenderGetLogicalSize(renderer,&width,&height);assert(width==NPE_WIDTH&&height==NPE_HEIGHT);
         game_view_close();game_view_file=NULL;game_view_world=NULL;game_view_playing=NULL;
         SDL_DestroyTexture(texture);SDL_DestroyRenderer(renderer);SDL_DestroyWindow(window);free(before);free(world);npe_free(&file);

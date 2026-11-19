@@ -1,10 +1,12 @@
 #include <commctrl.h>
+#include <imm.h>
 #include <SDL_syswm.h>
 enum { SW_TAB=5100,SW_LIST,SW_CHANGE,SW_ORIGINAL,SW_ROWS,SW_COLS,SW_ROW_SPIN,
     SW_COL_SPIN,SW_RESET,SW_HINT,SW_ROW_LABEL,SW_COL_LABEL,SW_NOTE };
 typedef struct {
     HWND window,owner,tab,list,change,original,rows,cols,hint,row_label,col_label,note;
     HWND row_spin,col_spin;
+    HIMC capture_ime;int ime_detached;
     HFONT font;NpeSettings value;unsigned page;int capturing,done,accepted,scale;
 } SettingsWindow;
 static const wchar_t *settings_win_labels[]={L"上",L"下",L"左",L"右",L"确认",L"返回 / 菜单",
@@ -38,8 +40,12 @@ static void settings_win_map_enable(SettingsWindow *s){
     HWND controls[]={s->rows,s->cols,s->row_spin,s->col_spin,s->row_label,s->col_label};
     for(unsigned i=0;i<sizeof(controls)/sizeof(controls[0]);++i)EnableWindow(controls[i],enabled);
 }
+static void settings_win_capture_end(SettingsWindow *s){
+    if(s->ime_detached){ImmAssociateContext(s->window,s->capture_ime);s->ime_detached=0;}
+    s->capturing=0;
+}
 static void settings_win_page(SettingsWindow *s,unsigned page){
-    s->page=page;s->capturing=0;int map=page==2;
+    settings_win_capture_end(s);s->page=page;int map=page==2;
     ShowWindow(s->list,map?SW_HIDE:SW_SHOW);ShowWindow(s->change,map?SW_HIDE:SW_SHOW);
     HWND controls[]={s->original,s->rows,s->cols,s->row_spin,s->col_spin,s->row_label,s->col_label,s->note};
     for(unsigned i=0;i<sizeof(controls)/sizeof(controls[0]);++i)ShowWindow(controls[i],map?SW_SHOW:SW_HIDE);
@@ -48,10 +54,12 @@ static void settings_win_page(SettingsWindow *s,unsigned page){
 }
 static void settings_win_capture(SettingsWindow *s){
     if(ListView_GetNextItem(s->list,-1,LVNI_SELECTED)<0)return;
+    if(!s->ime_detached){s->capture_ime=ImmAssociateContext(s->window,NULL);s->ime_detached=1;}
     s->capturing=1;SetFocus(s->window);EnableWindow(s->change,FALSE);
     SetWindowTextW(s->hint,s->page==1?L"请按手柄按钮；Esc 取消。重复绑定会交换。":L"请按新按键；Esc 取消。F10 为保留键。");
 }
 static SDL_Keycode settings_win_key(WPARAM vk,LPARAM flags){
+    if(vk==VK_PROCESSKEY){UINT scan=(UINT)((flags>>16)&255);if(flags&(1L<<24))scan|=0xe000;vk=MapVirtualKeyW(scan,MAPVK_VSC_TO_VK_EX);}
     if(vk>='A'&&vk<='Z')return SDLK_a+(SDL_Keycode)(vk-'A');
     if(vk>='0'&&vk<='9')return SDLK_0+(SDL_Keycode)(vk-'0');
     if(vk>=VK_F1&&vk<=VK_F12)return SDLK_F1+(SDL_Keycode)(vk-VK_F1);
@@ -78,7 +86,7 @@ static void settings_win_bound(SettingsWindow *s,int number){
     if(s->page==1)settings_bind_button(&s->value,(unsigned)selected,(Uint8)number);
     else settings_bind_key(&s->value,(unsigned)selected,(SDL_Keycode)number);
     settings_win_list(s);ListView_SetItemState(s->list,selected,LVIS_SELECTED|LVIS_FOCUSED,LVIS_SELECTED|LVIS_FOCUSED);
-    s->capturing=0;EnableWindow(s->change,TRUE);SetFocus(s->list);
+    settings_win_capture_end(s);EnableWindow(s->change,TRUE);SetFocus(s->list);
     SetWindowTextW(s->hint,L"绑定已更新；点击“保存”后生效。");
 }
 static LRESULT CALLBACK settings_win_proc(HWND window,UINT message,WPARAM wp,LPARAM lp){
@@ -88,7 +96,7 @@ static LRESULT CALLBACK settings_win_proc(HWND window,UINT message,WPARAM wp,LPA
     if(message==WM_KEYDOWN||message==WM_SYSKEYDOWN){
         if(s->capturing){
             if(lp&(1L<<30))return 0;
-            if(wp==VK_ESCAPE){s->capturing=0;EnableWindow(s->change,TRUE);SetFocus(s->list);SetWindowTextW(s->hint,L"已取消本次绑定。");}
+            if(wp==VK_ESCAPE){settings_win_capture_end(s);EnableWindow(s->change,TRUE);SetFocus(s->list);SetWindowTextW(s->hint,L"已取消本次绑定。");}
             else if(s->page==0){SDL_Keycode key=settings_win_key(wp,lp);if(key && key!=SDLK_F10)settings_win_bound(s,key);}
             return 0;
         }
@@ -152,7 +160,7 @@ static int settings_windows_dialog(NpeSettings *edited,unsigned page){
     s.cols=settings_win_control(&s,WS_EX_CLIENTEDGE,L"EDIT",L"",WS_TABSTOP|ES_NUMBER|ES_AUTOHSCROLL,250,206,120,30,SW_COLS);
     s.col_spin=settings_win_control(&s,0,UPDOWN_CLASSW,L"",UDS_ALIGNRIGHT|UDS_SETBUDDYINT|UDS_ARROWKEYS,350,206,20,30,SW_COL_SPIN);
     SendMessageW(s.col_spin,UDM_SETBUDDY,(WPARAM)s.cols,0);SendMessageW(s.col_spin,UDM_SETRANGE32,15,60);
-    s.note=settings_win_control(&s,0,L"STATIC",L"仅扩大地图显示范围，不改变游戏规则。\r\n战斗和菜单保持原有布局。",0,26,270,540,70,SW_NOTE);
+    s.note=settings_win_control(&s,0,L"STATIC",L"仅扩大地图显示范围，不改变游戏规则。\r\n菜单随视野定位，对话区贴底显示。",0,26,270,540,70,SW_NOTE);
     SendMessageW(s.original,BM_SETCHECK,s.value.rows?BST_UNCHECKED:BST_CHECKED,0);
     SetDlgItemInt(s.window,SW_ROWS,s.value.rows?s.value.rows:14,FALSE);SetDlgItemInt(s.window,SW_COLS,s.value.cols?s.value.cols:25,FALSE);
     settings_win_control(&s,0,L"BUTTON",L"恢复默认",WS_TABSTOP|BS_PUSHBUTTON,20,444,120,32,SW_RESET);
@@ -192,7 +200,7 @@ static int settings_windows_dialog(NpeSettings *edited,unsigned page){
         SDL_Delay(10);
     }
     if(s.owner)EnableWindow(s.owner,TRUE);
-    DestroyWindow(s.window);DeleteObject(s.font);
+    settings_win_capture_end(&s);DestroyWindow(s.window);DeleteObject(s.font);
     if(s.owner)SetForegroundWindow(s.owner);
     if(s.accepted)*edited=s.value;
     return s.accepted;

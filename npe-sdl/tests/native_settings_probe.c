@@ -33,8 +33,17 @@ static void check_controls(void *pointer){
     assert(ListView_GetItemCount(s->list)==SETTINGS_KEYS);
     LOGFONTW font;assert(GetObjectW(s->font,sizeof(font),&font));assert(!wcscmp(font.lfFaceName,L"Microsoft YaHei UI"));
     if(scenario==0){
-        settings_win_capture(s);assert(s->capturing);
-        settings_win_proc(s->window,WM_KEYDOWN,'W',0);assert(!s->capturing&&s->value.keys[0]==SDLK_w);
+        HIMC original=ImmCreateContext();assert(original);
+        HIMC previous=ImmAssociateContext(s->window,original);
+        settings_win_capture(s);assert(s->capturing&&s->ime_detached);
+        assert(!ImmGetContext(s->window));
+        settings_win_proc(s->window,WM_KEYDOWN,VK_PROCESSKEY,0x11L<<16);
+        assert(!s->capturing&&!s->ime_detached&&s->value.keys[0]==SDLK_w);
+        HIMC restored=ImmGetContext(s->window);assert(restored==original);ImmReleaseContext(s->window,restored);
+        settings_win_capture(s);settings_win_proc(s->window,WM_KEYDOWN,VK_ESCAPE,0);
+        assert(!s->capturing&&!s->ime_detached);
+        settings_win_capture(s);settings_win_page(s,0);assert(!s->capturing&&!s->ime_detached);
+        ImmAssociateContext(s->window,previous);ImmDestroyContext(original);
         settings_win_proc(s->window,WM_COMMAND,IDCANCEL,0);assert(s->done&&!s->accepted);
     }else if(scenario==1){
         TabCtrl_SetCurSel(s->tab,2);NMHDR change={s->tab,SW_TAB,TCN_SELCHANGE};

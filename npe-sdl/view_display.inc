@@ -9,6 +9,41 @@ static uint32_t *game_view_rgba;
 static unsigned game_view_width,game_view_height;
 static unsigned game_view_map,game_view_left,game_view_top;
 static unsigned game_view_offset_x,game_view_offset_y;
+/* UI is a separate host layer; never move a rectangle of map pixels with it. */
+static uint8_t game_view_menu_mask[NPE_WIDTH*NPE_HEIGHT];
+static uint8_t game_view_menu_base[NPE_WIDTH*NPE_HEIGHT];
+static int game_view_menu_valid;
+static void game_view_mask_rect(int x,int y,int w,int h){
+    for(int row=y;row<y+h&&row<NPE_HEIGHT;++row)
+        for(int col=x;col<x+w&&col<NPE_WIDTH;++col)
+            if(row>=0&&col>=0)game_view_menu_mask[row*NPE_WIDTH+col]=1;
+}
+static void game_view_mask_resource(const NpeFile *file,unsigned image,int x,int y){
+    NpeIndexedBitmap bitmap;
+    if(!npe_indexed_bitmap(file,npe_image_group_index(file,7,(uint16_t)image),&bitmap))
+        game_view_mask_rect(x,y,bitmap.width,bitmap.height);
+}
+static void game_view_menu_layer(const NpeFile *file,const uint8_t *base,
+                                 unsigned selection,int submenu,int saves){
+    memcpy(game_view_menu_base,base,sizeof(game_view_menu_base));
+    memset(game_view_menu_mask,0,sizeof(game_view_menu_mask));
+    game_view_mask_resource(file,1,0,7);game_view_mask_resource(file,2,0,37);
+    if(submenu){
+        unsigned image=selection==0?3:selection==2?4:5;
+        game_view_mask_resource(file,image,42,selection==2?70:37);
+    }
+    /* Save-slot and later native panels may overlap the menu. Their changed
+       scanline spans are added at presentation, including opaque interiors. */
+    if(saves)game_view_mask_resource(file,12,105,46);
+    game_view_menu_valid=1;
+}
+static void game_view_blit(const uint8_t *src,int sx,int sy,int w,int h,int x,int y){
+    for(int row=0;row<h;++row)for(int col=0;col<w;++col){
+        int px=x+col,py=y+row;
+        if(px>=0&&py>=0&&(unsigned)px<game_view_width&&(unsigned)py<game_view_height)
+            game_view_pixels[py*game_view_width+px]=src[(sy+row)*NPE_WIDTH+sx+col];
+    }
+}
 static void game_view_close(void){
     if(game_view_texture)SDL_DestroyTexture(game_view_texture);
     free(game_view_pixels);free(game_view_background);free(game_view_rgba);game_view_texture=NULL;
@@ -51,14 +86,45 @@ static int game_view_present(SDL_Renderer *renderer,const uint8_t *native){
         game_view_map=game_view_world->map_number;game_view_left=left;game_view_top=top;
         game_view_offset_x=game_view_world->view.offset_x;game_view_offset_y=game_view_world->view.offset_y;
     }else memcpy(game_view_pixels,game_view_background,(size_t)width*height);
-    /* Keep the exact native walking poses, erasures, notices and overlays in
-       its existing camera rectangle. Surroundings are a read-only extension. */
     int dx=((int)game_view_world->view.offset_x-(int)left)*16;
     int dy=((int)game_view_world->view.offset_y-(int)top)*16;
-    for(int y=overlay?0:4;y<(overlay?NPE_HEIGHT:116);++y)for(int x=0;x<NPE_WIDTH;++x){
-        int px=dx+x,py=dy+y;
-        if(px>=0&&py>=0&&(unsigned)px<width&&(unsigned)py<height)
-            game_view_pixels[(unsigned)py*width+(unsigned)px]=native[y*NPE_WIDTH+x];
+    int dialogue=mode==2 || (mode==5 && game_view_world->text_style==0);
+    int menu=mode==6 && game_view_world->property_page!=9 &&
+        game_view_world->property_page!=10 && game_view_menu_valid;
+    if(!overlay){
+        game_view_blit(native,0,4,NPE_WIDTH,112,dx,dy+4);
+        game_view_menu_valid=0;
+    }else if(dialogue){
+        /* Preserve the native page and glyphs, but anchor its two-line
+           window to the bottom of the whole viewport and extend its fill. */
+        unsigned top=84,bottom=118;
+        if(mode==5 && game_view_world->text_rect[1]<NPE_HEIGHT &&
+           game_view_world->text_rect[3]<NPE_HEIGHT &&
+           game_view_world->text_rect[3]>=game_view_world->text_rect[1]){
+            top=game_view_world->text_rect[1];bottom=game_view_world->text_rect[3];
+        }
+        unsigned h=bottom-top+1;
+        unsigned y=height-h-4;
+        memset(game_view_pixels+(size_t)y*width,0,(size_t)width*h);
+        game_view_blit(native,0,(int)top,NPE_WIDTH,(int)h,width>=NPE_WIDTH+8?4:0,(int)y);
+    }else if(menu){
+        uint8_t mask[sizeof(game_view_menu_mask)];memcpy(mask,game_view_menu_mask,sizeof(mask));
+        for(unsigned y=0;y<NPE_HEIGHT;++y){
+            int first=NPE_WIDTH,last=-1;
+            for(unsigned x=0;x<NPE_WIDTH;++x)
+                if(!mask[y*NPE_WIDTH+x] && native[y*NPE_WIDTH+x]!=game_view_menu_base[y*NPE_WIDTH+x]){
+                    if((int)x<first)first=(int)x;last=(int)x;
+                }
+            if(last>=first)memset(mask+y*NPE_WIDTH+first,1,(size_t)(last-first+1));
+        }
+        unsigned mx=width>=NPE_WIDTH+8?4:0,my=height>=NPE_HEIGHT+8?4:0;
+        for(unsigned y=0;y<NPE_HEIGHT;++y)for(unsigned x=0;x<NPE_WIDTH;++x)
+            if(mask[y*NPE_WIDTH+x] && y+my<height && x+mx<width)
+                game_view_pixels[(y+my)*width+x+mx]=native[y*NPE_WIDTH+x];
+    }else{
+        /* Independent member/shop/quiz panels are centered in the viewport. */
+        game_view_blit(native,0,0,NPE_WIDTH,NPE_HEIGHT,
+            ((int)width-NPE_WIDTH)/2,((int)height-NPE_HEIGHT)/2);
     }
     for(size_t i=0;i<(size_t)width*height;++i)game_view_rgba[i]=game_lcd_color(game_view_pixels[i]);
     SDL_UpdateTexture(game_view_texture,NULL,game_view_rgba,(int)width*4);

@@ -1713,6 +1713,8 @@ static int draw_world(SDL_Renderer *renderer, SDL_Texture *texture,
     } else if (world->game_mode == 4) {
         if (!font || npe_render_native_member_screen(file,font,world,status_member,pixels))return -1;
     }
+    if(world->game_mode==6)game_view_menu_layer(file,menu_background,
+        system_menu_selection,system_submenu_open,save_slots_open);
     npe_render_system_menu_overlay(file, world, system_menu_selection, pixels);
     if(world->game_mode==6 && npe_render_native_menu_money(file,font,world,pixels))return -1;
     if (system_submenu_open) {
