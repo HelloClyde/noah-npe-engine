@@ -1,4 +1,7 @@
 /* SDL GameController input translated into the existing keyboard actions. */
+#ifndef NPE_CONTROLLER_BUTTON_MAP
+#define NPE_CONTROLLER_BUTTON_MAP(button) (button)
+#endif
 static SDL_GameController *game_pad;
 static void (*game_pad_show_help)(void);
 static SDL_JoystickID game_pad_id=-1;
@@ -55,6 +58,7 @@ static int game_pad_event(SDL_Event *event){
         else if(event->caxis.axis==SDL_CONTROLLER_AXIS_LEFTY)game_pad_y=event->caxis.value;
         else return 0;
     }else{
+        event->cbutton.button=NPE_CONTROLLER_BUTTON_MAP(event->cbutton.button);
         unsigned bit=0;
         switch(event->cbutton.button){
         case SDL_CONTROLLER_BUTTON_DPAD_UP:bit=1;break;

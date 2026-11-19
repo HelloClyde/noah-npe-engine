@@ -16,6 +16,12 @@ v0.1.4 修正走路动画节奏：按原固件64Hz公共时基等待后提交每
 
 已提供 [v0.2.0 macOS 应用包和安卓 APK](https://github.com/HelloClyde/noah-npe-engine/releases/tag/v0.2.0)，使用同一套 C＋SDL2 游戏核心。macOS 支持 Apple Silicon／Intel；安卓支持 NPE 文件导入、屏幕按键和实体手柄。构建方法、验证范围及限制见 [平台说明](docs/platforms.md)。
 
+## PC 设置
+
+窗口顶部“设置 → 按键映射…”可视化修改键盘和手柄按钮；“设置 → 地图视野…”可设置 N 行、M 列 tile。F10 也可打开，配置会保存到下次启动。地图扩展不改变游戏规则，战斗与菜单保留原布局。[详细操作](npe-sdl/PORTABLE.md#自定义按键与地图视野pc)。
+
+![按键映射设置](docs/screenshots/key-settings.png)
+
 ## 游戏截图
 
 以下为当前 C＋SDL 程序实际渲染的《天降风云 V1.3》画面。战斗图通过内置战斗预览入口获取。

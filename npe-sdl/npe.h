@@ -1351,6 +1351,8 @@ int npe_world_unequip_item(const NpeFile *file, NpeWorld *world,
 int npe_world_unequip_selected(const NpeFile *,NpeWorld *);
 int npe_render_world(const NpeFile *file, const NpeWorld *world,
                      uint8_t pixels[NPE_WIDTH * NPE_HEIGHT]);
+int npe_render_world_view(const NpeFile *file,const NpeWorld *world,unsigned cols,unsigned rows,
+    uint8_t *pixels,unsigned *view_left,unsigned *view_top);
 int npe_render_world_frame(const NpeFile *file, const NpeWorld *world,
                            unsigned actor_frame,
                            uint8_t pixels[NPE_WIDTH * NPE_HEIGHT]);

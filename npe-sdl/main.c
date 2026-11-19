@@ -9,10 +9,14 @@
 #include <windows.h>
 #include <commdlg.h>
 #endif
+#include "settings.inc"
+#define NPE_CONTROLLER_BUTTON_MAP(button) settings_pad_button(button)
 #include "controller_input.inc"
 #include "mobile_input.inc"
+#include "view_display.inc"
 #ifdef __APPLE__
 char *npe_macos_choose_game(void);
+void npe_macos_settings_menu(void);
 #endif
 #include "windows_menu.inc"
 
@@ -40,9 +44,24 @@ static int game_audio_event(const SDL_Event *event){
     return npe_sound_handle_event(game_sound_player,event);
 }
 static void show_controller_help(void);
+static void show_settings(void);
+static void show_settings_page(unsigned);
+static int game_host_event(SDL_Event *event){
+    if(event->type==SDL_USEREVENT && event->user.code==0x4e504553){
+        show_settings_page((unsigned)(uintptr_t)event->user.data1);return 0;
+    }
+    if(event->type==SDL_KEYDOWN || event->type==SDL_KEYUP){
+        if(event->key.keysym.sym==SDLK_F10){
+            if(event->type==SDL_KEYDOWN && !event->key.repeat)show_settings();
+            return 0;
+        }
+        event->key.keysym.sym=settings_keyboard(event->key.keysym.sym,game_pad_mode?*game_pad_mode:0);
+    }
+    return 1;
+}
 static int game_PollEvent(SDL_Event *event){
     (void)npe_sound_pump(game_sound_player);
-    while(SDL_PollEvent(event))if(game_mobile_event(event)&&!game_audio_event(event)&&game_pad_event(event))return 1;
+    while(SDL_PollEvent(event))if(game_host_event(event)&&game_mobile_event(event)&&!game_audio_event(event)&&game_pad_event(event))return 1;
     return game_pad_repeat(event);
 }
 static int game_wait_event_timeout(SDL_Event *event,int timeout,const char *caller){
@@ -50,7 +69,7 @@ static int game_wait_event_timeout(SDL_Event *event,int timeout,const char *call
     (void)caller;
     if(!game_pad && (!game_sound_player || !game_sound_player->device)){
         int got=SDL_WaitEventTimeout(event,timeout);
-        if(!got || (game_mobile_event(event) && !game_audio_event(event) && game_pad_event(event)))return got;
+        if(!got || (game_host_event(event) && game_mobile_event(event) && !game_audio_event(event) && game_pad_event(event)))return got;
     }
     Uint32 start=SDL_GetTicks();
     for(;;){
@@ -63,7 +82,7 @@ static int game_wait_event_timeout(SDL_Event *event,int timeout,const char *call
         }
         int slice=remaining<0 || remaining>10?10:remaining;
         int got=SDL_WaitEventTimeout(event,slice);
-        if(got && game_mobile_event(event) && !game_audio_event(event) && game_pad_event(event))return 1;
+        if(got && game_host_event(event) && game_mobile_event(event) && !game_audio_event(event) && game_pad_event(event))return 1;
         if(!got && game_pad_repeat(event))return 1;
         if(timeout>=0 && (SDL_GetTicks()-start>=(Uint32)timeout || (!got && remaining==slice)))return 0;
     }
@@ -108,6 +127,9 @@ static int load_native_fonts(NpeFont *font) {
     free(path);SDL_free(base);
     return result;
 }
+
+
+#include "settings_ui.inc"
 
 static void draw_pixels(SDL_Renderer *renderer, SDL_Texture *texture,
                         const uint8_t pixels[NPE_WIDTH * NPE_HEIGHT]);
@@ -1402,6 +1424,10 @@ static void draw_pixels(SDL_Renderer *renderer, SDL_Texture *texture,
         uint32_t blue = 161 - value * 119 / 15;
         rgba[i] = 0xff000000u | red << 16 | green << 8 | blue;
     }
+    if(pixels!=last_pixel_frame)memcpy(last_pixel_frame,pixels,sizeof(last_pixel_frame));
+    last_pixel_renderer=renderer;
+    if(game_view_present(renderer,pixels))return;
+    SDL_RenderSetLogicalSize(renderer,NPE_WIDTH,NPE_HEIGHT);
     SDL_UpdateTexture(texture, NULL, rgba, NPE_WIDTH * (int)sizeof(uint32_t));
     SDL_RenderClear(renderer);
     SDL_RenderCopy(renderer, texture, NULL, NULL);
@@ -1950,6 +1976,9 @@ typedef struct {SDL_Renderer *renderer;SDL_Texture *texture;} NpcMoveDisplay;
 typedef NpcMoveDisplay WalkDisplay;
 
 static void show_controller_help(void){
+#ifndef __ANDROID__
+    show_settings_page(1);return;
+#endif
     SDL_Window *window=SDL_GetKeyboardFocus();
     SDL_Renderer *renderer=window?SDL_GetRenderer(window):NULL;
     if(!renderer || renderer!=last_pixel_renderer)return;
@@ -3275,7 +3304,7 @@ static int run(int argc, char **argv) {
     unsigned start_map, start_x, start_y, start_left, start_top;
     unsigned start_progress = 0, npc_id, story_index, character_index, skill_id,
              enemy_index, encounter_map, battle_enemy_id;
-    int start_fields, consumed;
+    int start_fields=0, consumed=0;
     SDL_Window *window = NULL;
     SDL_Renderer *renderer = NULL;
     SDL_Texture *texture = NULL;
@@ -3413,6 +3442,7 @@ static int run(int argc, char **argv) {
         fprintf(stderr, "SDL: %s\n", SDL_GetError()); return 1;
     }
     if(SDL_WasInit(SDL_INIT_VIDEO)){
+        settings_load();
         if(!SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER))game_pad_open();
     }
     if (read_file(argv[argc - 1], &bytes, &size)) goto done;
@@ -3521,6 +3551,11 @@ static int run(int argc, char **argv) {
     window = SDL_CreateWindow("诺亚舟-NPE-引擎", SDL_WINDOWPOS_CENTERED,
                               SDL_WINDOWPOS_CENTERED, 960, 480, SDL_WINDOW_RESIZABLE);
     if (!window) goto sdl_error;
+    desktop_settings_callback=show_settings_page;
+#ifdef __APPLE__
+    npe_macos_settings_menu();
+#endif
+    game_view_file=&file;game_view_world=&world;game_view_playing=&walk_preview;
     if(desktop_menu_attach(window)<0)fprintf(stderr,"cannot create desktop menu\n");
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!renderer) renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
@@ -4318,6 +4353,7 @@ parsed_done:
     npe_font_free(&font);
     game_sound_player=NULL;
     npe_sound_close(&sound);
+    game_view_close();game_view_file=NULL;game_view_world=NULL;game_view_playing=NULL;
     if (texture) SDL_DestroyTexture(texture);
     if (renderer) SDL_DestroyRenderer(renderer);
     desktop_menu_detach();
@@ -4331,6 +4367,12 @@ done:
 }
 
 int main(int argc, char **argv) {
+#ifndef __ANDROID__
+    if(argc==2 && !strcmp(argv[1],"--settings")){
+        if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMECONTROLLER))return 1;
+        settings_load();game_pad_open();show_settings();game_pad_close();SDL_Quit();return 0;
+    }
+#endif
 #ifdef __APPLE__
     if(argc==1){
         char *selected=npe_macos_choose_game();

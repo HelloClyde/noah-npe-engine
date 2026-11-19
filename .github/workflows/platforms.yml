@@ -71,5 +71,5 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
       - run: |
           cmake -S npe-sdl -B build -DBUILD_TESTING=ON
-          cmake --build build --target mobile-input-probe --parallel 2
-          ctest --test-dir build -R '^mobile-input$' --output-on-failure
+          cmake --build build --target mobile-input-probe settings-probe settings-ui-probe --parallel 2
+          ctest --test-dir build -R '^(mobile-input|settings|settings-ui)$' --output-on-failure

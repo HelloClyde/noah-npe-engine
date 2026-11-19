@@ -1,3 +1,4 @@
+static void (*desktop_settings_callback)(unsigned);
 /* Native desktop menus; the game still consumes SDL input events. */
 #ifdef _WIN32
 #include <SDL_syswm.h>
@@ -72,7 +73,7 @@ static int desktop_drag_event(HWND hwnd,UINT message,WPARAM wparam){
     }
     return 0;
 }
-enum { DESKTOP_OPEN=41001,DESKTOP_EXIT,DESKTOP_ABOUT };
+enum { DESKTOP_OPEN=41001,DESKTOP_EXIT,DESKTOP_ABOUT,DESKTOP_SETTINGS,DESKTOP_VIEW };
 static char *desktop_choose_game(HWND owner){
     WCHAR path[32768]={0};OPENFILENAMEW dialog;
     memset(&dialog,0,sizeof(dialog));dialog.lStructSize=sizeof(dialog);dialog.hwndOwner=owner;
@@ -102,6 +103,8 @@ static LRESULT CALLBACK desktop_window_proc(HWND hwnd,UINT message,WPARAM wparam
             return 0;
         }
         case DESKTOP_EXIT:desktop_quit();return 0;
+        case DESKTOP_SETTINGS:if(desktop_settings_callback)desktop_settings_callback(0);return 0;
+        case DESKTOP_VIEW:if(desktop_settings_callback)desktop_settings_callback(2);return 0;
         case DESKTOP_ABOUT:
             MessageBoxW(hwnd,L"\u8bfa\u4e9a\u821f-NPE-\u5f15\u64ce\r\n\r\n\u4f5c\u8005\uff1aHelloClyde\r\n\r\n\u7eaf C11 + SDL2 \u5b9e\u73b0\u7684 NPE \u6e38\u620f\u5f15\u64ce\u3002",
                 L"\u5173\u4e8e\u8bfa\u4e9a\u821f-NPE-\u5f15\u64ce",MB_OK|MB_ICONINFORMATION);
@@ -113,12 +116,15 @@ static LRESULT CALLBACK desktop_window_proc(HWND hwnd,UINT message,WPARAM wparam
 static int desktop_menu_attach(SDL_Window *window){
     SDL_SysWMinfo info;SDL_VERSION(&info.version);
     if(!SDL_GetWindowWMInfo(window,&info) || info.subsystem!=SDL_SYSWM_WINDOWS)return 0;
-    HWND hwnd=info.info.win.window;HMENU bar=CreateMenu(),file=CreatePopupMenu(),about=CreatePopupMenu();
-    if(!bar||!file||!about){if(bar)DestroyMenu(bar);if(file)DestroyMenu(file);if(about)DestroyMenu(about);return -1;}
+    HWND hwnd=info.info.win.window;HMENU bar=CreateMenu(),file=CreatePopupMenu(),about=CreatePopupMenu(),options=CreatePopupMenu();
+    if(!bar||!file||!about||!options){if(options)DestroyMenu(options);if(bar)DestroyMenu(bar);if(file)DestroyMenu(file);if(about)DestroyMenu(about);return -1;}
     AppendMenuW(file,MF_STRING,DESKTOP_OPEN,L"\u6253\u5f00 NPE...(&O)");
     AppendMenuW(file,MF_SEPARATOR,0,NULL);AppendMenuW(file,MF_STRING,DESKTOP_EXIT,L"\u9000\u51fa(&X)");
+    AppendMenuW(options,MF_STRING,DESKTOP_SETTINGS,L"\u6309\u952e\u6620\u5c04...\tF10");
+    AppendMenuW(options,MF_STRING,DESKTOP_VIEW,L"\u5730\u56fe\u89c6\u91ce...");
     AppendMenuW(about,MF_STRING,DESKTOP_ABOUT,L"\u5173\u4e8e\u8bfa\u4e9a\u821f-NPE-\u5f15\u64ce...");
     AppendMenuW(bar,MF_POPUP,(UINT_PTR)file,L"\u6587\u4ef6(&F)");
+    AppendMenuW(bar,MF_POPUP,(UINT_PTR)options,L"\u8bbe\u7f6e(&S)");
     AppendMenuW(bar,MF_POPUP,(UINT_PTR)about,L"\u5173\u4e8e(&A)");
     if(!SetMenu(hwnd,bar)){DestroyMenu(bar);return -1;}
     desktop_window=hwnd;desktop_menu=bar;

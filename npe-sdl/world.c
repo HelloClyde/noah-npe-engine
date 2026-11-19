@@ -7741,3 +7741,5 @@ void npe_render_battle_hud_values(unsigned hp, unsigned max_hp, unsigned qi,
     snprintf(line, sizeof(line), ":%d/%d", (int16_t)qi, (int16_t)max_qi);
     draw_native_battle_counter(line, 104, pixels);
 }
+
+#include "world_view.inc"
