@@ -87,6 +87,7 @@ static LRESULT CALLBACK settings_win_proc(HWND window,UINT message,WPARAM wp,LPA
     if(!s)return DefWindowProcW(window,message,wp,lp);
     if(message==WM_KEYDOWN||message==WM_SYSKEYDOWN){
         if(s->capturing){
+            if(lp&(1L<<30))return 0;
             if(wp==VK_ESCAPE){s->capturing=0;EnableWindow(s->change,TRUE);SetFocus(s->list);SetWindowTextW(s->hint,L"已取消本次绑定。");}
             else if(s->page==0){SDL_Keycode key=settings_win_key(wp,lp);if(key && key!=SDLK_F10)settings_win_bound(s,key);}
             return 0;
@@ -170,7 +171,18 @@ static int settings_windows_dialog(NpeSettings *edited,unsigned page){
                (msg.hwnd==s.window||IsChild(s.window,msg.hwnd))){settings_win_proc(s.window,msg.message,msg.wParam,msg.lParam);continue;}
             if(msg.message==WM_KEYDOWN && (msg.hwnd==s.window||IsChild(s.window,msg.hwnd))){
                 if(msg.wParam==VK_ESCAPE){s.done=1;continue;}
-                if(msg.wParam==VK_RETURN){if(GetFocus()==s.list)settings_win_capture(&s);else SendMessageW(s.window,WM_COMMAND,IDOK,0);continue;}
+                if(msg.wParam==VK_RETURN){
+                    if(msg.lParam&(1L<<30))continue;
+                    HWND focus=GetFocus();
+                    if(focus==s.list)settings_win_capture(&s);
+                    else{
+                        wchar_t name[32]={0};GetClassNameW(focus,name,32);
+                        LONG_PTR type=GetWindowLongPtrW(focus,GWL_STYLE)&BS_TYPEMASK;
+                        if(!wcscmp(name,L"Button") && (type==BS_PUSHBUTTON||type==BS_DEFPUSHBUTTON))SendMessageW(focus,BM_CLICK,0,0);
+                        else SendMessageW(s.window,WM_COMMAND,IDOK,0);
+                    }
+                    continue;
+                }
             }
             if(!IsDialogMessageW(s.window,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}
         }

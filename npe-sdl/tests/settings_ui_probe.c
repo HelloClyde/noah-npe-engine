@@ -49,23 +49,44 @@ int main(int argc,char **argv){
         NpeWorld *world=calloc(1,sizeof(*world)),*before=malloc(sizeof(*before));assert(world&&before);
         assert(!npe_world_new_game(&file,world));memcpy(before,world,sizeof(*before));
         int playing=1;game_view_file=&file;game_view_world=world;game_view_playing=&playing;
-        SDL_Window *window=SDL_CreateWindow("map test",0,0,400,224,SDL_WINDOW_HIDDEN);assert(window);
+        SDL_Window *window=SDL_CreateWindow("map test",0,0,400,232,SDL_WINDOW_HIDDEN);assert(window);
         SDL_Renderer *renderer=SDL_CreateRenderer(window,-1,SDL_RENDERER_SOFTWARE);assert(renderer);
         SDL_Texture *texture=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_ARGB8888,SDL_TEXTUREACCESS_STREAMING,NPE_WIDTH,NPE_HEIGHT);assert(texture);
         uint8_t native[NPE_WIDTH*NPE_HEIGHT];assert(!npe_render_world(&file,world,native));
-        draw_pixels(renderer,texture,native);int width,height;SDL_RenderGetLogicalSize(renderer,&width,&height);assert(width==400&&height==224);
+        draw_pixels(renderer,texture,native);int width,height;SDL_RenderGetLogicalSize(renderer,&width,&height);assert(width==400&&height==232);
         assert(!memcmp(world,before,sizeof(*world)));
-        SDL_Surface *surface=SDL_CreateRGBSurfaceWithFormat(0,400,224,32,SDL_PIXELFORMAT_ARGB8888);assert(surface);
+        SDL_Surface *surface=SDL_CreateRGBSurfaceWithFormat(0,400,232,32,SDL_PIXELFORMAT_ARGB8888);assert(surface);
         assert(!SDL_RenderReadPixels(renderer,NULL,SDL_PIXELFORMAT_ARGB8888,surface->pixels,surface->pitch));
-        unsigned left,top;uint8_t *scratch=malloc(400*224);assert(scratch);
+        unsigned left,top;uint8_t *scratch=malloc(400*232);assert(scratch);
         assert(!npe_render_world_view(&file,world,25,14,scratch,&left,&top));free(scratch);
         int dx=((int)world->view.offset_x-(int)left)*16,dy=((int)world->view.offset_y-(int)top)*16;
         for(int y=0;y<112;++y)for(int x=0;x<NPE_WIDTH;++x){
-            int px=dx+x,py=dy+y;if(px<0||py<0||px>=400||py>=224)continue;
+            int px=dx+x,py=dy+y+4;if(px<0||py<0||px>=400||py>=232)continue;
             Uint32 actual=((Uint32 *)((Uint8 *)surface->pixels+py*surface->pitch))[px];
             assert(actual==game_lcd_color(native[(y+4)*NPE_WIDTH+x]));
         }
         char path[2200];snprintf(path,sizeof(path),"%sexpanded-map.bmp",test_folder);assert(!SDL_SaveBMP(surface,path));SDL_FreeSurface(surface);
+        uint8_t *map_before=malloc(400*232);assert(map_before);memcpy(map_before,game_view_pixels,400*232);
+        NpeFont font={0};assert(!load_native_fonts(&font));
+        uint8_t dialogue[NPE_WIDTH*NPE_HEIGHT];memcpy(dialogue,native,sizeof(dialogue));
+        const uint8_t text[]="Dialogue keeps the expanded map.";
+        assert(!npe_render_gbk_dialogue(&font,text,sizeof(text)-1,0,dialogue));npe_font_free(&font);
+        const unsigned overlay_modes[]={2,4,5,6,8};
+        for(unsigned step=0;step<sizeof(overlay_modes)/sizeof(overlay_modes[0]);++step){
+            unsigned mode=overlay_modes[step];
+                        world->game_mode=(uint16_t)mode;
+            uint8_t shown[NPE_WIDTH*NPE_HEIGHT];memcpy(shown,mode==6?native:dialogue,sizeof(shown));
+            if(mode==6)npe_render_system_menu_overlay(&file,world,0,shown);
+            draw_pixels(renderer,texture,shown);
+            SDL_RenderGetLogicalSize(renderer,&width,&height);assert(width==400&&height==232);
+            for(int y=0;y<232;++y)for(int x=0;x<400;++x){
+                if(x>=dx&&x<dx+NPE_WIDTH&&y>=dy&&y<dy+NPE_HEIGHT)
+                    assert(game_view_pixels[y*400+x]==shown[(y-dy)*NPE_WIDTH+x-dx]);
+                else assert(game_view_pixels[y*400+x]==map_before[y*400+x]);
+            }
+        }
+        free(map_before);
+        puts("Dialogue/menus: expanded dimensions and background retained; complete native UI/bottom border preserved");
         world->game_mode=3;draw_pixels(renderer,texture,native);SDL_RenderGetLogicalSize(renderer,&width,&height);assert(width==NPE_WIDTH&&height==NPE_HEIGHT);
         game_view_close();game_view_file=NULL;game_view_world=NULL;game_view_playing=NULL;
         SDL_DestroyTexture(texture);SDL_DestroyRenderer(renderer);SDL_DestroyWindow(window);free(before);free(world);npe_free(&file);
