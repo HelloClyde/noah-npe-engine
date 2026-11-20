@@ -1,4 +1,6 @@
 static NpeTextPage game_view_text;
+static const uint8_t *game_view_notice_base;
+static uint16_t game_view_notice_rect[4];
 static const NpeFile *game_view_file;
 static const NpeWorld *game_view_world;
 static const int *game_view_playing;
@@ -71,7 +73,7 @@ static int game_view_present(SDL_Renderer *renderer,const uint8_t *native){
     /* Map-related popups and scripted UI share the configured canvas.
        Battle/title have independent screens rather than a map backdrop. */
     if(mode==3||mode==7||!game_view_world->map_number)return 0;
-    int overlay=mode!=1;
+    int overlay=mode!=1 && !game_view_notice_base;
     /* Retain the LCD's four-pixel margins around N complete tile rows.
        This also leaves room for the last line/border of a native dialogue. */
     unsigned width=settings.cols*16,height=settings.rows*16+8;
@@ -102,7 +104,7 @@ static int game_view_present(SDL_Renderer *renderer,const uint8_t *native){
     int menu=mode==6 && game_view_world->property_page!=9 &&
         game_view_world->property_page!=10 && game_view_menu_valid;
     if(!overlay){
-        game_view_blit(native,0,4,NPE_WIDTH,112,dx,dy+4);
+        game_view_blit(game_view_notice_base?game_view_notice_base:native,0,4,NPE_WIDTH,112,dx,dy+4);
         /* Freeze the actual displayed map, including the last native walking
            pose, rather than reconstructing it when a retained popup opens. */
         memcpy(game_view_background,game_view_pixels,(size_t)width*height);
@@ -153,6 +155,11 @@ static int game_view_present(SDL_Renderer *renderer,const uint8_t *native){
         /* Independent member/shop/quiz panels are centered in the viewport. */
         game_view_blit(native,0,0,NPE_WIDTH,NPE_HEIGHT,
             ((int)width-NPE_WIDTH)/2,((int)height-NPE_HEIGHT)/2);
+    }
+    if(game_view_notice_base){
+        int x=game_view_notice_rect[0],y=game_view_notice_rect[1];
+        int w=game_view_notice_rect[2]-x+1,h=game_view_notice_rect[3]-y+1;
+        game_view_blit(native,x,y,w,h,((int)width-w)/2,((int)height-h)/2);
     }
     for(size_t i=0;i<(size_t)width*height;++i)game_view_rgba[i]=game_lcd_color(game_view_pixels[i]);
     SDL_UpdateTexture(game_view_texture,NULL,game_view_rgba,(int)width*4);

@@ -2222,8 +2222,9 @@ static int show_teleport_event(SDL_Renderer *renderer,SDL_Texture *texture,
     draw_pixels(renderer,texture,pixels);
     retain_world_frame(file,world,renderer,pixels,1);
     memcpy(notice,pixels,sizeof(notice));
-    if(npe_render_map_name_notice(file,font,world,notice))return -1;
-    draw_pixels(renderer,texture,notice);
+    if(npe_render_map_name_notice_layout(file,font,world,notice,game_view_notice_rect))return -1;
+    game_view_notice_base=pixels;
+    draw_pixels(renderer,texture,notice);game_view_notice_base=NULL;
     if(wait_timed_notice(5000))return -2;
     draw_pixels(renderer,texture,pixels);
     world->map_init_pending=1;
@@ -3200,8 +3201,9 @@ static int show_world_exit_notice(const NpeFile *file,const NpeWorld *world,
                                   SDL_Renderer *renderer,SDL_Texture *texture,const NpeFont *font,
                                   const uint8_t *pixels) {
     uint8_t notice[NPE_WIDTH*NPE_HEIGHT];memcpy(notice,pixels,sizeof(notice));
-    if(npe_render_map_name_notice(file,font,world,notice))return -1;
-    draw_pixels(renderer,texture,notice);
+    if(npe_render_map_name_notice_layout(file,font,world,notice,game_view_notice_rect))return -1;
+    game_view_notice_base=pixels;
+    draw_pixels(renderer,texture,notice);game_view_notice_base=NULL;
     /* Keep a bounded automatic timeout; confirmation may dismiss earlier. */
     Uint32 deadline=SDL_GetTicks()+5000;
     for(;;){Uint32 now=SDL_GetTicks();if(SDL_TICKS_PASSED(now,deadline))break;

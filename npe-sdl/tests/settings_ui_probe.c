@@ -75,6 +75,29 @@ int main(int argc,char **argv){
         char path[2200];snprintf(path,sizeof(path),"%sexpanded-map.bmp",test_folder);assert(!SDL_SaveBMP(surface,path));SDL_FreeSurface(surface);
         uint8_t *map_before=malloc(400*232);assert(map_before);memcpy(map_before,game_view_pixels,400*232);
         NpeFont font={0};assert(!load_native_fonts(&font));
+        const unsigned notice_views[][2]={{7,15},{25,25},{25,40}};
+        for(unsigned i=0;i<3;++i){
+            settings.rows=notice_views[i][0];settings.cols=notice_views[i][1];
+            world->game_mode=1;draw_pixels(renderer,texture,native);
+            unsigned vw=game_view_width,vh=game_view_height;
+            uint8_t *before_notice=malloc((size_t)vw*vh);assert(before_notice);
+            memcpy(before_notice,game_view_pixels,(size_t)vw*vh);
+            uint8_t notice[NPE_WIDTH*NPE_HEIGHT];memcpy(notice,native,sizeof(notice));
+            assert(!npe_render_map_name_notice_layout(&file,&font,world,notice,game_view_notice_rect));
+            unsigned sx=game_view_notice_rect[0],sy=game_view_notice_rect[1];
+            unsigned rw=game_view_notice_rect[2]-sx+1,rh=game_view_notice_rect[3]-sy+1;
+            unsigned cx=(vw-rw)/2,cy=(vh-rh)/2;
+            game_view_notice_base=native;draw_pixels(renderer,texture,notice);game_view_notice_base=NULL;
+            for(unsigned y=0;y<vh;++y)for(unsigned x=0;x<vw;++x){
+                uint8_t expected=x>=cx&&x<cx+rw&&y>=cy&&y<cy+rh?
+                    notice[(sy+y-cy)*NPE_WIDTH+sx+x-cx]:before_notice[y*vw+x];
+                assert(game_view_pixels[y*vw+x]==expected);
+            }
+            draw_pixels(renderer,texture,native);assert(!memcmp(game_view_pixels,before_notice,(size_t)vw*vh));
+            free(before_notice);
+        }
+        settings.rows=14;settings.cols=25;draw_pixels(renderer,texture,native);
+        puts("Map-name notice: centered at 15x7, 25x25 and 40x25 tiles; all outside pixels and closing map remain unchanged");
         uint8_t dialogue[NPE_WIDTH*NPE_HEIGHT];memcpy(dialogue,native,sizeof(dialogue));
         const uint8_t text[]={0xa1,0xb0,0xbf,0xda,0xc4,0xc8,0xa1,0xad,0xa1,0xad,0xa1,0xb1};
         memset(dialogue+84*NPE_WIDTH,0,35*NPE_WIDTH);

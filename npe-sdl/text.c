@@ -1424,8 +1424,12 @@ int npe_render_party_notice(const NpeFile *file, const NpeFont *font,
     return npe_render_timed_notice(font, message, length + sizeof(join), pixels);
 }
 
-int npe_render_map_name_notice(const NpeFile *file,const NpeFont *font,
-                               const NpeWorld *world,uint8_t *pixels) {
+static void map_name_notice_rect(size_t size,uint16_t rect[4]){
+    if(rect){rect[0]=(uint16_t)(120-size*4-5);rect[1]=48;
+        rect[2]=(uint16_t)(120+size*4+5);rect[3]=72;}
+}
+int npe_render_map_name_notice_layout(const NpeFile *file,const NpeFont *font,
+                               const NpeWorld *world,uint8_t *pixels,uint16_t rect[4]) {
     NpeMap map;size_t size=0;
     if(!world || npe_map(file,world->map_number-1,&map))return -1;
     if(npe_rpg_runtime_owner(file)==world && npe_rpg_runtime_map_current(file,world->map_number)){
@@ -1439,6 +1443,7 @@ int npe_render_map_name_notice(const NpeFile *file,const NpeFont *font,
             ++size;
         }
         if(size>28 || !font || !font->data16 || !pixels)return -1;
+        map_name_notice_rect(size,rect);
         timed_notice_box(size,pixels);
         unsigned cursor=120-(unsigned)size*4;
         uint32_t address=UINT32_C(0x5278e4);
@@ -1459,7 +1464,13 @@ int npe_render_map_name_notice(const NpeFile *file,const NpeFont *font,
         return 0;
     }
     while(size<sizeof(map.name) && map.name[size])++size;
-    return npe_render_timed_notice(font,map.name,size,pixels);
+    int result=npe_render_timed_notice(font,map.name,size,pixels);
+    if(!result)map_name_notice_rect(size,rect);
+    return result;
+}
+int npe_render_map_name_notice(const NpeFile *file,const NpeFont *font,
+                               const NpeWorld *world,uint8_t *pixels){
+    return npe_render_map_name_notice_layout(file,font,world,pixels,NULL);
 }
 
 static int battle_message_box(const NpeFont *font,const uint8_t *message,

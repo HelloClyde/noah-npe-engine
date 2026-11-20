@@ -73,6 +73,7 @@ int npe_render_skill_notice(const NpeFile *file,const NpeFont *font,unsigned ski
                              uint8_t pixels[NPE_WIDTH*NPE_HEIGHT]);
 int npe_render_world_skill_notice(const NpeFile *,const NpeFont *,NpeWorld *,unsigned,
                                   uint8_t pixels[NPE_WIDTH*NPE_HEIGHT]);
+int npe_render_map_name_notice_layout(const NpeFile *,const NpeFont *,const NpeWorld *,uint8_t *,uint16_t [4]);
 int npe_render_map_name_notice(const NpeFile *file,const NpeFont *font,
                                const NpeWorld *world,uint8_t *pixels);
 /* Original resident timed save/load failure prompt over the retained LCD. */
