@@ -10,7 +10,7 @@ typedef struct {
     HFONT font;NpeSettings value;unsigned page;int capturing,done,accepted,scale;
 } SettingsWindow;
 static const wchar_t *settings_win_labels[]={L"上",L"下",L"左",L"右",L"确认",L"返回 / 菜单",
-    L"对话 / 翻页",L"卸装",L"说明上一页",L"说明下一页",L"按键说明"};
+    L"对话 / 翻页",L"卸装",L"说明上一页",L"说明下一页",L"按键说明",L"选项左（J）",L"选项右（L）"};
 static int settings_win_px(SettingsWindow *s,int value){return MulDiv(value,s->scale,96);}
 static HWND settings_win_control(SettingsWindow *s,DWORD ex,const wchar_t *class_name,
     const wchar_t *text,DWORD style,int x,int y,int width,int height,int id){
@@ -27,7 +27,7 @@ static void settings_win_list(SettingsWindow *s){
     unsigned count=s->page==1?SETTINGS_BUTTONS:SETTINGS_KEYS;
     for(unsigned i=0;i<count;++i){
         LVITEMW item;memset(&item,0,sizeof(item));item.mask=LVIF_TEXT;item.iItem=(int)i;
-        item.pszText=(wchar_t *)settings_win_labels[i];
+        item.pszText=(wchar_t *)settings_win_labels[s->page==0&&i>=10?i+1:i];
         SendMessageW(s->list,LVM_INSERTITEMW,0,(LPARAM)&item);
         const char *name=s->page==1?SDL_GameControllerGetStringForButton((SDL_GameControllerButton)s->value.buttons[i]):SDL_GetKeyName(s->value.keys[i]);
         wchar_t binding[128];settings_win_utf8(name,binding,128);item.iSubItem=1;item.pszText=binding;

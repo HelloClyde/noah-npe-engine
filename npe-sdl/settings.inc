@@ -5,13 +5,14 @@
 #endif
 #include "platform/settings_types.h"
 static const SDL_Keycode settings_default_keys[SETTINGS_KEYS]={SDLK_UP,SDLK_DOWN,
-    SDLK_LEFT,SDLK_RIGHT,SDLK_RETURN,SDLK_F4,SDLK_SPACE,SDLK_u,SDLK_p,SDLK_n};
+    SDLK_LEFT,SDLK_RIGHT,SDLK_RETURN,SDLK_F4,SDLK_SPACE,SDLK_u,SDLK_p,SDLK_n,SDLK_j,SDLK_l};
 static const Uint8 settings_default_buttons[SETTINGS_BUTTONS]={
     SDL_CONTROLLER_BUTTON_DPAD_UP,SDL_CONTROLLER_BUTTON_DPAD_DOWN,
     SDL_CONTROLLER_BUTTON_DPAD_LEFT,SDL_CONTROLLER_BUTTON_DPAD_RIGHT,
     SDL_CONTROLLER_BUTTON_A,SDL_CONTROLLER_BUTTON_B,SDL_CONTROLLER_BUTTON_X,
     SDL_CONTROLLER_BUTTON_Y,SDL_CONTROLLER_BUTTON_LEFTSHOULDER,
-    SDL_CONTROLLER_BUTTON_RIGHTSHOULDER,SDL_CONTROLLER_BUTTON_START};
+    SDL_CONTROLLER_BUTTON_RIGHTSHOULDER,SDL_CONTROLLER_BUTTON_START,
+    SDL_CONTROLLER_BUTTON_LEFTSTICK,SDL_CONTROLLER_BUTTON_RIGHTSTICK};
 static NpeSettings settings;
 static int settings_loaded;
 static int settings_last_saved;
@@ -35,24 +36,43 @@ static int settings_valid(const NpeSettings *value){
 }
 static int settings_decode(const char *text,NpeSettings *value){
     NpeSettings next;settings_defaults(&next);int consumed=0;
-    if(sscanf(text,"NPE_SETTINGS 1%n",&consumed)!=0 || !consumed)return -1;
+    unsigned version;
+    if(sscanf(text,"NPE_SETTINGS %u%n",&version,&consumed)!=1 || !consumed || (version!=1&&version!=2))return -1;
+    unsigned keys=version==1?10:SETTINGS_KEYS,buttons=version==1?11:SETTINGS_BUTTONS;
     text+=consumed;
-    for(unsigned i=0;i<SETTINGS_KEYS;++i){
+    for(unsigned i=0;i<keys;++i){
         int key;consumed=0;if(sscanf(text," %d%n",&key,&consumed)!=1 || !consumed)return -1;
         next.keys[i]=(SDL_Keycode)key;text+=consumed;
     }
-    for(unsigned i=0;i<SETTINGS_BUTTONS;++i){
+    for(unsigned i=0;i<buttons;++i){
         unsigned button;consumed=0;if(sscanf(text," %u%n",&button,&consumed)!=1 || button>=SDL_CONTROLLER_BUTTON_MAX)return -1;
         next.buttons[i]=(Uint8)button;text+=consumed;
     }
     if(sscanf(text," %u %u%n",&next.rows,&next.cols,&consumed)!=2)return -1;
     text+=consumed;while(*text==' '||*text=='\r'||*text=='\n'||*text=='\t')++text;
+    if(version==1){
+        for(unsigned i=10;i<SETTINGS_KEYS;++i){
+            int duplicate=0;for(unsigned j=0;j<i;++j)duplicate|=next.keys[j]==next.keys[i];
+            if(duplicate){SDL_Keycode candidate=i==10?SDLK_q:SDLK_e;
+                for(;;){int used=0;for(unsigned j=0;j<i;++j)used|=next.keys[j]==candidate;if(!used)break;candidate=candidate==SDLK_z?SDLK_a:candidate+1;}
+                next.keys[i]=candidate;
+            }
+        }
+        for(unsigned i=11;i<SETTINGS_BUTTONS;++i){
+            int duplicate=0;for(unsigned j=0;j<i;++j)duplicate|=next.buttons[j]==next.buttons[i];
+            if(duplicate)for(unsigned candidate=0;candidate<SDL_CONTROLLER_BUTTON_MAX;++candidate){
+                if(candidate==SDL_CONTROLLER_BUTTON_GUIDE)continue;
+                int used=0;for(unsigned j=0;j<i;++j)used|=next.buttons[j]==candidate;
+                if(!used){next.buttons[i]=(Uint8)candidate;break;}
+            }
+        }
+    }
     if(*text || !settings_valid(&next))return -1;
     *value=next;return 0;
 }
 static int settings_encode(const NpeSettings *value,char *text,size_t size){
     if(!settings_valid(value))return -1;
-    int used=snprintf(text,size,"NPE_SETTINGS 1\n");
+    int used=snprintf(text,size,"NPE_SETTINGS 2\n");
     for(unsigned i=0;i<SETTINGS_KEYS+SETTINGS_BUTTONS;++i){
         if(used<0 || (size_t)used>=size)return -1;
         int number=i<SETTINGS_KEYS?(int)value->keys[i]:(int)value->buttons[i-SETTINGS_KEYS];

@@ -36,6 +36,13 @@ static int ui_keys(void *unused){
     }
     return 0;
 }
+static int shop_binding_keys(void *unused){
+    (void)unused;const SDL_Keycode keys[]={SDLK_q,SDLK_F4};
+    for(unsigned i=0;i<2;++i){SDL_Delay(70);SDL_Event event;SDL_zero(event);
+        event.type=SDL_KEYDOWN;event.key.keysym.sym=keys[i];SDL_PushEvent(&event);
+        event.type=SDL_KEYUP;SDL_PushEvent(&event);}
+    return 0;
+}
 int main(int argc,char **argv){
     assert(argc==2||argc==3);snprintf(test_folder,sizeof(test_folder),"%s/",argv[1]);
     SDL_SetMainReady();SDL_setenv("SDL_VIDEODRIVER","dummy",1);assert(!SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMECONTROLLER));
@@ -135,6 +142,19 @@ int main(int argc,char **argv){
             for(int y=0;y<NPE_HEIGHT;++y)for(int x=0;x<NPE_WIDTH;++x)
                 assert(game_view_pixels[(y+56)*400+x+80]==dialogue[y*NPE_WIDTH+x]);
         }
+        world->game_mode=1;
+        if(!file.rpg_runtime)assert(!npe_world_resources_open(&file,world));
+        world->game_mode=4;world->event_context_id=13;world->shop_kind=world->shop_ready=1;
+        world->shop_list_ready=1;world->shop_selected_item=1;world->shop_ui=1;
+        NpeItem item;assert(!npe_world_item(&file,world,1,&item));
+        settings_bind_key(&settings,10,SDLK_q);settings_bind_key(&settings,11,SDLK_e);
+        game_pad_mode=&world->game_mode;game_input_reset();SDL_FlushEvents(SDL_FIRSTEVENT,SDL_LASTEVENT);
+        unsigned money=world->money,owned=world->condition_words[1];
+        SDL_Thread *shop_keys=SDL_CreateThread(shop_binding_keys,"shop remapped selection",NULL);assert(shop_keys);
+        assert(!show_shop_quantity(renderer,texture,&file,&font,world));SDL_WaitThread(shop_keys,NULL);
+        assert(world->shop_choice==1&&world->money==money&&world->condition_words[1]==owned);
+        game_pad_mode=NULL;
+        puts("Real shop quantity dialog: remapped Q switches No to Yes; cancel leaves money and inventory unchanged");
         /* Append diagnostic text only in memory; original NPE bytes stay intact. */
         size_t source_size=file.size;
         uint8_t raw[96];unsigned raw_size=0;
@@ -142,7 +162,7 @@ int main(int argc,char **argv){
         memcpy(raw+raw_size,"ABC123",6);raw_size+=6;raw[raw_size++]='@';raw[raw_size++]=0;
         uint8_t *extended=realloc(file.bytes,source_size+raw_size);assert(extended);
         file.bytes=extended;file.size=source_size+raw_size;memcpy(extended+source_size,raw,raw_size);
-        assert(!npe_world_resources_open(&file,world));
+        if(!file.rpg_runtime)assert(!npe_world_resources_open(&file,world));
         world->game_mode=2;world->text_file_position=(uint32_t)source_size;
         world->text_offset=0;world->text_more=1;
         memcpy(dialogue,native,sizeof(dialogue));

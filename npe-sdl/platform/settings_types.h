@@ -1,7 +1,7 @@
 #ifndef NPE_SETTINGS_TYPES_H
 #define NPE_SETTINGS_TYPES_H
 #include <SDL.h>
-enum { SETTINGS_KEYS=10, SETTINGS_BUTTONS=11 };
+enum { SETTINGS_KEYS=12, SETTINGS_BUTTONS=13 };
 typedef struct {
     SDL_Keycode keys[SETTINGS_KEYS];
     Uint8 buttons[SETTINGS_BUTTONS];

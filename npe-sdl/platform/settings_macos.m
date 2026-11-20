@@ -41,8 +41,8 @@ static SDL_Keycode native_mac_key(NSEvent *event){
 @implementation NpeNativeSettings
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)table {return [table tag]==1?SETTINGS_BUTTONS:SETTINGS_KEYS;}
 - (id)tableView:(NSTableView *)table objectValueForTableColumn:(NSTableColumn *)column row:(NSInteger)row {
-    NSArray *labels=@[@"上",@"下",@"左",@"右",@"确认",@"返回 / 菜单",@"对话 / 翻页",@"卸装",@"说明上一页",@"说明下一页",@"按键说明"];
-    if([[column identifier] isEqualToString:@"action"])return [labels objectAtIndex:(NSUInteger)row];
+    NSArray *labels=@[@"上",@"下",@"左",@"右",@"确认",@"返回 / 菜单",@"对话 / 翻页",@"卸装",@"说明上一页",@"说明下一页",@"按键说明",@"选项左（J）",@"选项右（L）"];
+    if([[column identifier] isEqualToString:@"action"])return [labels objectAtIndex:(NSUInteger)([table tag]==0&&row>=10?row+1:row)];
     const char *name=[table tag]==1?SDL_GameControllerGetStringForButton((SDL_GameControllerButton)edited->buttons[row]):SDL_GetKeyName(edited->keys[row]);
     return name?[NSString stringWithUTF8String:name]:@"";
 }

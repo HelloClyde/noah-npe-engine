@@ -48,13 +48,13 @@ static void show_settings_page(unsigned tab){
     SDL_Texture *texture=renderer?SDL_CreateTexture(renderer,SDL_PIXELFORMAT_ARGB8888,
         SDL_TEXTUREACCESS_STREAMING,NPE_WIDTH,16):NULL;
     if(!texture){if(renderer)SDL_DestroyRenderer(renderer);SDL_DestroyWindow(window);npe_font_free(&font);return;}
-    SDL_RenderSetLogicalSize(renderer,640,560);
+    SDL_RenderSetLogicalSize(renderer,640,624);
     SDL_SetTextureBlendMode(texture,SDL_BLENDMODE_BLEND);settings_load();
     NpeSettings edited=settings;unsigned selected=0;int capture=0,running=1;char number[5]="";
     game_pad_reset();
     while(running){
         const char *labels[]={"\xc9\xcf","\xcf\xc2","\xd7\xf3","\xd3\xd2","\xc8\xb7\xc8\xcf","\xb7\xb5\xbb\xd8\x2f\xb2\xcb\xb5\xa5",
-            "\xb6\xd4\xbb\xb0\x2f\xb7\xad\xd2\xb3","\xd0\xb6\xd7\xb0","\xcb\xb5\xc3\xf7\xc9\xcf\xd2\xbb\xd2\xb3","\xcb\xb5\xc3\xf7\xcf\xc2\xd2\xbb\xd2\xb3","\xb0\xb4\xbc\xfc\xcb\xb5\xc3\xf7"};
+            "\xb6\xd4\xbb\xb0\x2f\xb7\xad\xd2\xb3","\xd0\xb6\xd7\xb0","\xcb\xb5\xc3\xf7\xc9\xcf\xd2\xbb\xd2\xb3","\xcb\xb5\xc3\xf7\xcf\xc2\xd2\xbb\xd2\xb3","\xb0\xb4\xbc\xfc\xcb\xb5\xc3\xf7","\xd1\xa1\xcf\xee\xd7\xf3\xa3\xa8\x4a\xa3\xa9","\xd1\xa1\xcf\xee\xd3\xd2\xa3\xa8\x4c\xa3\xa9"};
         SDL_SetRenderDrawColor(renderer,32,36,42,255);SDL_RenderClear(renderer);
         settings_ui_text(renderer,texture,&font,"\xc9\xe8\xd6\xc3\xa3\xba\x20\x5b\x31\x5d\xbc\xfc\xc5\xcc\x20\x20\x5b\x32\x5d\xca\xd6\xb1\xfa\x20\x20\x5b\x33\x5d\xb5\xd8\xcd\xbc",16,8);
         settings_ui_text(renderer,texture,&font,capture==2?"\xca\xe4\xc8\xeb\xca\xfd\xd7\xd6\xba\xf3\xb0\xb4\x45\x6e\x74\x65\x72\xc8\xb7\xc8\xcf\xa3\xac\x45\x73\x63\xc8\xa1\xcf\xfb":capture?"\xc7\xeb\xb0\xb4\xd0\xc2\xb0\xb4\xbc\xfc\xa3\xac\x45\x73\x63\xc8\xa1\xcf\xfb\xa3\xbb\xd6\xd8\xb8\xb4\xb0\xf3\xb6\xa8\xbb\xe1\xbd\xbb\xbb\xbb":
@@ -68,7 +68,7 @@ static void show_settings_page(unsigned tab){
             if(tab<2){
                 const char *name=tab==0?SDL_GetKeyName(edited.keys[i]):
                     SDL_GameControllerGetStringForButton((SDL_GameControllerButton)edited.buttons[i]);
-                snprintf(line,sizeof(line),"%s %s: %s",selected==i?">":" ",labels[i],name?name:"?");
+                snprintf(line,sizeof(line),"%s %s: %s",selected==i?">":" ",labels[tab==0&&i>=10?i+1:i],name?name:"?");
             }else if(i==0)snprintf(line,sizeof(line),"%s %s: %s",selected==i?">":" ","\xd4\xad\xca\xbc\xca\xd3\xd2\xb0",edited.rows?"\xb9\xd8\xb1\xd5":"\xbf\xaa\xc6\xf4");
             else snprintf(line,sizeof(line),"%s %s: %u",selected==i?">":" ",
                 i==1?"\xcf\xd4\xca\xbe\xd0\xd0\xca\xfd":"\xcf\xd4\xca\xbe\xc1\xd0\xca\xfd",i==1?edited.rows:edited.cols);
@@ -85,8 +85,8 @@ static void show_settings_page(unsigned tab){
             settings_ui_text(renderer,texture,&font,"\xd7\xf3\xd3\xd2\xbc\xfc\xb5\xf7\xd5\xfb\xa3\xac\xd0\xd0\x37\x2d\x34\x30\xa3\xac\xc1\xd0\x31\x35\x2d\x36\x30",16,230);
             settings_ui_text(renderer,texture,&font,"\xd6\xbb\xc0\xa9\xd5\xb9\xb5\xd8\xcd\xbc\xa3\xac\xd5\xbd\xb6\xb7\xd3\xeb\xb2\xcb\xb5\xa5\xb1\xa3\xb3\xd6\xd4\xad\xb2\xbc\xbe\xd6",16,270);
         }
-        settings_ui_text(renderer,texture,&font,"\x5b\x52\x5d\x20\xbb\xd6\xb8\xb4\xc8\xab\xb2\xbf\xc4\xac\xc8\xcf\xc9\xe8\xd6\xc3",16,470);
-        settings_ui_text(renderer,texture,&font,"\x5b\x45\x73\x63\x2f\x46\x31\x30\x5d\x20\xb1\xa3\xb4\xe6\xb2\xa2\xb7\xb5\xbb\xd8",16,510);
+        settings_ui_text(renderer,texture,&font,"\x5b\x52\x5d\x20\xbb\xd6\xb8\xb4\xc8\xab\xb2\xbf\xc4\xac\xc8\xcf\xc9\xe8\xd6\xc3",16,534);
+        settings_ui_text(renderer,texture,&font,"\x5b\x45\x73\x63\x2f\x46\x31\x30\x5d\x20\xb1\xa3\xb4\xe6\xb2\xa2\xb7\xb5\xbb\xd8",16,574);
         SDL_RenderPresent(renderer);
         SDL_Event event;(void)npe_sound_pump(game_sound_player);
         if(!SDL_WaitEventTimeout(&event,20))continue;
@@ -132,8 +132,8 @@ static void show_settings_page(unsigned tab){
             float x,y;SDL_RenderWindowToLogical(renderer,event.button.x,event.button.y,&x,&y);
             if(capture)continue;
             if(y<40){tab=x<180?0:x<360?1:2;selected=0;continue;}
-            if(y>=510){running=0;continue;}
-            if(y>=470 && y<505){settings_defaults(&edited);continue;}
+            if(y>=574){running=0;continue;}
+            if(y>=534 && y<569){settings_defaults(&edited);continue;}
             if(y>=86 && y<86+32*(int)count){selected=(unsigned)(y-86)/32;activate=1;
                 if(tab==2 && selected && x>=420){delta=x>=500?1:-1;activate=0;}}
         }

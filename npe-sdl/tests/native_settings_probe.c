@@ -44,6 +44,12 @@ static void check_controls(void *pointer){
         assert(!s->capturing&&!s->ime_detached);
         settings_win_capture(s);settings_win_page(s,0);assert(!s->capturing&&!s->ime_detached);
         ImmAssociateContext(s->window,previous);ImmDestroyContext(original);
+        ListView_SetItemState(s->list,-1,0,LVIS_SELECTED|LVIS_FOCUSED);
+        ListView_SetItemState(s->list,10,LVIS_SELECTED|LVIS_FOCUSED,LVIS_SELECTED|LVIS_FOCUSED);
+        settings_win_capture(s);settings_win_proc(s->window,WM_KEYDOWN,'Q',0);
+        assert(s->value.keys[10]==SDLK_q);
+        wchar_t action[64];LVITEMW label={0};label.iSubItem=0;label.pszText=action;label.cchTextMax=64;
+        SendMessageW(s->list,LVM_GETITEMTEXTW,10,(LPARAM)&label);assert(wcsstr(action,L"J"));
         settings_win_proc(s->window,WM_COMMAND,IDCANCEL,0);assert(s->done&&!s->accepted);
     }else if(scenario==1){
         TabCtrl_SetCurSel(s->tab,2);NMHDR change={s->tab,SW_TAB,TCN_SELCHANGE};

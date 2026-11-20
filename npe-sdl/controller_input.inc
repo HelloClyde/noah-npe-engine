@@ -85,6 +85,8 @@ static int game_pad_event(SDL_Event *event){
             case SDL_CONTROLLER_BUTTON_B:return game_pad_key(event,SDLK_F4,0);
             case SDL_CONTROLLER_BUTTON_X:return game_pad_key(event,SDLK_SPACE,0);
             case SDL_CONTROLLER_BUTTON_Y:return game_pad_key(event,SDLK_u,0);
+            case SDL_CONTROLLER_BUTTON_LEFTSTICK:return game_pad_key(event,SDLK_j,0);
+            case SDL_CONTROLLER_BUTTON_RIGHTSTICK:return game_pad_key(event,SDLK_l,0);
             case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:return game_pad_key(event,SDLK_p,0);
             case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:return game_pad_key(event,SDLK_n,0);
             default:return 0;
