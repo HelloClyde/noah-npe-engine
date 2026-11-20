@@ -103,7 +103,32 @@ int main(int argc,char **argv){
         game_view_menu_layer(&file,native,3,1,0);draw_pixels(renderer,texture,shown);
         for(unsigned y=0;y<NPE_HEIGHT;++y)for(unsigned x=0;x<NPE_WIDTH;++x)
             if(game_view_menu_mask[y*NPE_WIDTH+x])assert(game_view_pixels[(y+4)*400+x+4]==shown[y*NPE_WIDTH+x]);
-        const unsigned overlay_modes[]={4,8,13,17,22};
+        /* Real retained yes/no entry and both cursor positions: every pixel
+           outside the two resource rectangles must equal the prior map. */
+        world->game_mode=1;draw_pixels(renderer,texture,native);
+        memcpy(map_before,game_view_pixels,400*232);
+        world->game_mode=17;world->map_init_pending=1;
+        const unsigned popup_levels[]={0,0,0};
+        assert(!draw_world(renderer,texture,&file,world,0,0,0,0,0,0,popup_levels,0,&font));
+        NpeIndexedBitmap yes,no;
+        assert(!npe_indexed_bitmap(&file,npe_image_group_index(&file,7,7),&yes));
+        assert(!npe_indexed_bitmap(&file,npe_image_group_index(&file,7,8),&no));
+        for(unsigned selection=0;selection<2;++selection){
+            for(unsigned y=0;y<232;++y)for(unsigned x=0;x<400;++x){
+                int sx=(int)x-80,sy=(int)y-56;
+                int in_yes=sx>=70&&sx<70+(int)yes.width&&sy>=45&&sy<45+(int)yes.height;
+                int in_no=sx>=134&&sx<134+(int)no.width&&sy>=45&&sy<45+(int)no.height;
+                uint8_t expected=(in_yes||in_no)?last_pixel_frame[sy*NPE_WIDTH+sx]:map_before[y*400+x];
+                assert(game_view_pixels[y*400+x]==expected);
+            }
+            if(!selection)assert(!game_story_choice_input(&file,world,SDLK_RIGHT,renderer,texture));
+        }
+        assert(!SDL_RenderReadPixels(renderer,NULL,SDL_PIXELFORMAT_ARGB8888,overlay_image->pixels,overlay_image->pitch));
+        snprintf(path,sizeof(path),"%sexpanded-choice.bmp",test_folder);assert(!SDL_SaveBMP(overlay_image,path));
+        world->game_mode=1;draw_pixels(renderer,texture,native);
+        assert(!memcmp(map_before,game_view_pixels,400*232));
+        puts("Yes/no popup: actual entry and selection toggle change only NPE button rectangles; surrounding map and closing frame remain identical");
+        const unsigned overlay_modes[]={4,8,13,22};
         for(unsigned step=0;step<sizeof(overlay_modes)/sizeof(overlay_modes[0]);++step){
             world->game_mode=(uint16_t)overlay_modes[step];draw_pixels(renderer,texture,dialogue);
             SDL_RenderGetLogicalSize(renderer,&width,&height);assert(width==400&&height==232);

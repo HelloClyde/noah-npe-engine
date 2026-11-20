@@ -45,6 +45,14 @@ static void game_view_blit(const uint8_t *src,int sx,int sy,int w,int h,int x,in
             game_view_pixels[py*game_view_width+px]=src[(sy+row)*NPE_WIDTH+sx+col];
     }
 }
+static void game_view_popup_resource(const uint8_t *native,unsigned image,int x,int y,int dx,int dy){
+    NpeIndexedBitmap bitmap;
+    if(npe_indexed_bitmap(game_view_file,npe_image_group_index(game_view_file,7,(uint16_t)image),&bitmap))return;
+    int w=bitmap.width,h=bitmap.height;
+    if(w>NPE_WIDTH-x)w=NPE_WIDTH-x;
+    if(h>NPE_HEIGHT-y)h=NPE_HEIGHT-y;
+    game_view_blit(native,x,y,w,h,dx+x,dy+y);
+}
 static void game_view_close(void){
     if(game_view_texture)SDL_DestroyTexture(game_view_texture);
     free(game_view_pixels);free(game_view_background);free(game_view_rgba);game_view_texture=NULL;
@@ -94,6 +102,9 @@ static int game_view_present(SDL_Renderer *renderer,const uint8_t *native){
         game_view_world->property_page!=10 && game_view_menu_valid;
     if(!overlay){
         game_view_blit(native,0,4,NPE_WIDTH,112,dx,dy+4);
+        /* Freeze the actual displayed map, including the last native walking
+           pose, rather than reconstructing it when a retained popup opens. */
+        memcpy(game_view_background,game_view_pixels,(size_t)width*height);
         game_view_menu_valid=0;game_view_text.valid=0;
     }else if(dialogue){
         /* Preserve the native page and glyphs, but anchor its two-line
@@ -116,6 +127,12 @@ static int game_view_present(SDL_Renderer *renderer,const uint8_t *native){
         memset(game_view_pixels+(size_t)y*width,0,(size_t)width*h);
         if(game_view_text.valid)npe_text_page_draw(&game_view_text,game_view_pixels,width,y+h,inset,y,available);
         else game_view_blit(native,0,(int)top,NPE_WIDTH,(int)(bottom-top+1),inset,(int)y);
+    }else if(mode==17){
+        /* Yes/no is painted over the retained LCD. Center only its two NPE
+           resources, never the map rectangle that happens to surround them. */
+        int mx=((int)width-NPE_WIDTH)/2,my=((int)height-NPE_HEIGHT)/2;
+        game_view_popup_resource(native,7,70,45,mx,my);
+        game_view_popup_resource(native,8,134,45,mx,my);
     }else if(menu){
         uint8_t mask[sizeof(game_view_menu_mask)];memcpy(mask,game_view_menu_mask,sizeof(mask));
         for(unsigned y=0;y<NPE_HEIGHT;++y){
