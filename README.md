@@ -14,7 +14,7 @@ v0.1.4 修正走路动画节奏：按原固件64Hz公共时基等待后提交每
 
 ## macOS 与安卓
 
-已提供 [macOS 应用包和安卓 APK](https://github.com/HelloClyde/noah-npe-engine/releases/latest)，使用同一套 C＋SDL2 游戏核心。macOS 支持 Apple Silicon／Intel；安卓支持 NPE 文件导入、任天堂方位的虚拟手柄、可调按键透明度和实体手柄。构建方法、验证范围及限制见 [平台说明](docs/platforms.md)。
+已提供 [macOS 应用包和安卓 APK](https://github.com/HelloClyde/noah-npe-engine/releases)，使用同一套 C＋SDL2 游戏核心。macOS 支持 Apple Silicon／Intel；安卓支持 NPE 文件导入、任天堂方位的虚拟手柄、可调按键透明度和实体手柄。构建方法、验证范围及限制见 [平台说明](docs/platforms.md)。
 
 ## PC 设置（[v0.2.2 下载](https://github.com/HelloClyde/noah-npe-engine/releases/tag/v0.2.2)）
 
