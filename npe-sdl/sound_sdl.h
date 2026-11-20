@@ -47,6 +47,8 @@ typedef struct {
     uint16_t dac_control,dac_gpio; /* Original REG72 and GPIO31 output bits. */
     uint64_t dac_ramp_nops; /* Last ramp REP budget, not SDL samples or milliseconds. */
     int dac_restore; /* Startup mute skips GPIO enable and restoration. */
+    unsigned host_attenuation;
+    int16_t host_sample;
     int16_t repeated_sample;
     unsigned repeat_byte; /* Byte0..7 in the four copies of a pending word. */
     int sample_pending;
@@ -79,6 +81,7 @@ int npe_sound_play_range_loop(NpeSoundPlayer *player,uint32_t offset,int32_t len
    No audio/paused output returns -1; it cannot advance Timer2 byte delivery.
    Only one foreground caller owns a player. No World access from callback. */
 int npe_sound_wait_request(NpeSoundPlayer *player);
+void npe_sound_set_volume(NpeSoundPlayer *player,unsigned percent);
 void npe_sound_close(NpeSoundPlayer *player);
 /* Diagnostic read; synchronized with the SDL audio callback. */
 size_t npe_sound_cursor(NpeSoundPlayer *player);

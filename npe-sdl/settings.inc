@@ -18,10 +18,12 @@ static int settings_loaded;
 static int settings_last_saved;
 static void settings_defaults(NpeSettings *value){
     memset(value,0,sizeof(*value));
+    value->volume=100;
     memcpy(value->keys,settings_default_keys,sizeof(value->keys));
     memcpy(value->buttons,settings_default_buttons,sizeof(value->buttons));
 }
 static int settings_valid(const NpeSettings *value){
+    if(value->sound_muted>1 || value->volume>100)return 0;
     if((value->rows||value->cols) &&
        (value->rows<7 || value->rows>40 || value->cols<15 || value->cols>60))return 0;
     for(unsigned i=0;i<SETTINGS_KEYS;++i){
@@ -50,6 +52,10 @@ static int settings_decode(const char *text,NpeSettings *value){
     }
     if(sscanf(text," %u %u%n",&next.rows,&next.cols,&consumed)!=2)return -1;
     text+=consumed;while(*text==' '||*text=='\r'||*text=='\n'||*text=='\t')++text;
+    if(version==2 && *text){
+        if(sscanf(text,"sound %u %u%n",&next.sound_muted,&next.volume,&consumed)!=2)return -1;
+        text+=consumed;while(*text==' '||*text=='\r'||*text=='\n'||*text=='\t')++text;
+    }
     if(version==1){
         for(unsigned i=10;i<SETTINGS_KEYS;++i){
             int duplicate=0;for(unsigned j=0;j<i;++j)duplicate|=next.keys[j]==next.keys[i];
@@ -81,7 +87,13 @@ static int settings_encode(const NpeSettings *value,char *text,size_t size){
     if(used<0 || (size_t)used>=size)return -1;
     int n=snprintf(text+used,size-(size_t)used,"\n%u %u\n",value->rows,value->cols);
     if(n<0 || (size_t)n>=size-(size_t)used)return -1;
-    return used+n;
+    used+=n;
+    if(value->sound_muted||value->volume!=100){
+        n=snprintf(text+used,size-(size_t)used,"sound %u %u\n",value->sound_muted,value->volume);
+        if(n<0||(size_t)n>=size-(size_t)used)return -1;
+        used+=n;
+    }
+    return used;
 }
 static char *settings_path(const char *name){
     char *base=SDL_GetPrefPath("NPE","npe-sdl");if(!base)return NULL;

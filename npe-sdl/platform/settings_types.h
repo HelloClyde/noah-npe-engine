@@ -6,6 +6,7 @@ typedef struct {
     SDL_Keycode keys[SETTINGS_KEYS];
     Uint8 buttons[SETTINGS_BUTTONS];
     unsigned rows,cols;
+    unsigned sound_muted,volume;
 } NpeSettings;
 typedef struct {
     void (*defaults)(NpeSettings *);

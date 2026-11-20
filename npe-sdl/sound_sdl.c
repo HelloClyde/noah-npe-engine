@@ -339,7 +339,10 @@ static void sound_callback(void *userdata, Uint8 *stream, int length) {
             player->repeated_sample=player->half[half][(player->cursor/sizeof(int16_t))%NPE_AUDIO_GAIN_BLOCK_SAMPLES];
             player->cursor+=sizeof(int16_t);player->repeat_byte=0;player->sample_pending=1;
         }
-        *output++=((const uint8_t *)&player->repeated_sample)[player->repeat_byte%sizeof(int16_t)];
+        unsigned byte=player->repeat_byte%sizeof(int16_t);
+        if(!byte)player->host_sample=(int16_t)((int32_t)player->repeated_sample*
+            (int)(100-player->host_attenuation)/100);
+        *output++=((const uint8_t *)&player->host_sample)[byte];
         --remaining;
         if((player->repeat_byte&1u)&&player->transport_running){
             /* The mono delivery adapter latches a complete signed word;
@@ -359,6 +362,13 @@ static void sound_callback(void *userdata, Uint8 *stream, int length) {
             }
         }
     }
+}
+
+void npe_sound_set_volume(NpeSoundPlayer *player,unsigned percent) {
+    if(!player)return;
+    if(player->device)SDL_LockAudioDevice(player->device);
+    player->host_attenuation=percent>100?0:100-percent;
+    if(player->device)SDL_UnlockAudioDevice(player->device);
 }
 
 void npe_sound_open(NpeSoundPlayer *player, const NpeFile *file) {

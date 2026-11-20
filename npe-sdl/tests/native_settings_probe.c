@@ -29,10 +29,22 @@ static void check_controls(void *pointer){
     SettingsWindow *s=pointer;require_class(s->tab,WC_TABCONTROLW);require_class(s->list,WC_LISTVIEWW);
     require_class(s->rows,L"Edit");require_class(s->cols,L"Edit");require_class(s->row_spin,UPDOWN_CLASSW);
     assert(GetClassLongPtrW(s->window,GCLP_HICON));
-    require_class(s->original,L"Button");assert(TabCtrl_GetItemCount(s->tab)==3);
-    assert(ListView_GetItemCount(s->list)==SETTINGS_KEYS);
+    require_class(s->original,L"Button");assert(TabCtrl_GetItemCount(s->tab)==4);
+    if(scenario!=3)assert(ListView_GetItemCount(s->list)==SETTINGS_KEYS);
     LOGFONTW font;assert(GetObjectW(s->font,sizeof(font),&font));assert(!wcscmp(font.lfFaceName,L"Microsoft YaHei UI"));
-    if(scenario==0){
+    if(scenario==3){
+        require_class(s->volume,TRACKBAR_CLASSW);
+        SendMessageW(s->volume,TBM_SETPOS,TRUE,37);
+        SendMessageW(s->window,WM_HSCROLL,TB_THUMBTRACK,(LPARAM)s->volume);
+        assert(s->value.volume==37&&game_sound_player->host_attenuation==63);
+        SendMessageW(s->sound,BM_SETCHECK,BST_UNCHECKED,0);
+        SendMessageW(s->window,WM_COMMAND,SW_SOUND,0);
+        assert(s->value.sound_muted&&game_sound_player->host_attenuation==100);
+        SendMessageW(s->sound,BM_SETCHECK,BST_CHECKED,0);
+        SendMessageW(s->window,WM_COMMAND,SW_SOUND,0);
+        assert(!s->value.sound_muted&&game_sound_player->host_attenuation==63);
+        SendMessageW(s->window,WM_COMMAND,IDCANCEL,0);
+    }else if(scenario==0){
         HIMC original=ImmCreateContext();assert(original);
         HIMC previous=ImmAssociateContext(s->window,original);
         settings_win_capture(s);assert(s->capturing&&s->ime_detached);
@@ -136,6 +148,11 @@ int main(int argc,char **argv){
     scenario=0;assert(!settings_windows_dialog(&edited,0));assert(edited.keys[0]==SDLK_UP);
     scenario=1;assert(settings_windows_dialog(&edited,0));assert(edited.rows==14&&edited.cols==25);
     scenario=2;assert(settings_windows_dialog(&edited,0));assert(!edited.rows&&edited.keys[0]==SDLK_UP);
+    NpeSoundPlayer audio={0};
+    game_sound_player=&audio;
+    scenario=3;assert(!settings_windows_dialog(&edited,3));
+    assert(edited.volume==100 && !audio.host_attenuation);
+    game_sound_player=NULL;
     assert(SDL_GetWindowFromID(game_id)==game);
     SDL_Event event;while(SDL_PollEvent(&event))assert(event.type!=SDL_QUIT);
     desktop_menu_detach();game_scale_window=NULL;game_scale_texture=NULL;SDL_DestroyTexture(sample);SDL_DestroyRenderer(scale_renderer);SDL_DestroyWindow(game);SDL_Quit();

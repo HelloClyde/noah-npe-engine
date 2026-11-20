@@ -3606,7 +3606,11 @@ static int run(int argc, char **argv) {
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
                                 SDL_TEXTUREACCESS_STREAMING, NPE_WIDTH, NPE_HEIGHT);
     if (!texture) goto sdl_error;
-    if (walk_preview){npe_sound_open(&sound, &file);game_sound_player=&sound;}
+    if (walk_preview){
+        npe_sound_open(&sound, &file);
+        npe_sound_set_volume(&sound,settings.sound_muted?0:settings.volume);
+        game_sound_player=&sound;
+    }
     if ((walk_preview || battle_preview) && load_native_fonts(&font)) goto parsed_done;
     if (title_game) {
         int played;
@@ -4412,6 +4416,9 @@ done:
 }
 
 int main(int argc, char **argv) {
+#if defined(_WIN32) && !defined(SDL_MAIN_HANDLED)
+    desktop_console_start(argc > 1 && argv[1][0] == '-' && strcmp(argv[1],"--settings") != 0);
+#endif
 #ifndef __ANDROID__
     if(argc==2 && !strcmp(argv[1],"--settings")){
         if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMECONTROLLER))return 1;

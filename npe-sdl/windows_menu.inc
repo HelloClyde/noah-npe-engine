@@ -5,6 +5,55 @@ static void (*desktop_settings_callback)(unsigned);
 #include <imm.h>
 #include <wchar.h>
 static HWND desktop_window;
+static int desktop_console_open, desktop_console_parent, desktop_console_cli;
+static int desktop_stdout_redirected, desktop_stderr_redirected;
+
+static int desktop_redirected(DWORD stream) {
+    DWORD type = GetFileType(GetStdHandle(stream));
+    return type == FILE_TYPE_PIPE || type == FILE_TYPE_DISK;
+}
+static void desktop_console_streams(const char *device) {
+    if (!desktop_stdout_redirected) (void)freopen(device, "w", stdout);
+    if (!desktop_stderr_redirected) (void)freopen(device, "w", stderr);
+}
+static void desktop_console_restore_parent(void) {
+    desktop_console_parent = desktop_console_cli &&
+        (!desktop_stdout_redirected || !desktop_stderr_redirected) &&
+        AttachConsole(ATTACH_PARENT_PROCESS);
+    desktop_console_streams(desktop_console_parent ? "CONOUT$" : "NUL");
+}
+static void desktop_console_start(int cli) {
+    desktop_console_cli = cli;
+    desktop_stdout_redirected = desktop_redirected(STD_OUTPUT_HANDLE);
+    desktop_stderr_redirected = desktop_redirected(STD_ERROR_HANDLE);
+    desktop_console_restore_parent();
+}
+static int desktop_console_toggle(void) {
+    fflush(stdout);
+    fflush(stderr);
+    if (desktop_console_open || desktop_console_parent) {
+        if (!FreeConsole()) return -1;
+        desktop_console_parent = 0;
+    }
+    if (desktop_console_open) {
+        desktop_console_open = 0;
+        desktop_console_restore_parent();
+        return 0;
+    }
+    if (!AllocConsole()) {
+        desktop_console_restore_parent();
+        return -1;
+    }
+    desktop_console_open = 1;
+    desktop_console_streams("CONOUT$");
+    SetConsoleTitleW(L"诺亚舟-NPE-引擎 调试终端");
+    HWND console = GetConsoleWindow();
+    HMENU system_menu = console ? GetSystemMenu(console, FALSE) : NULL;
+    if (system_menu) EnableMenuItem(system_menu, SC_CLOSE, MF_BYCOMMAND | MF_GRAYED);
+    puts("NPE debug console enabled.");
+    fflush(stdout);
+    return 0;
+}
 static WNDPROC desktop_original_proc;
 static HIMC desktop_ime_context;
 static int desktop_ime_detached;
@@ -82,7 +131,7 @@ static int desktop_drag_event(HWND hwnd,UINT message,WPARAM wparam){
     }
     return 0;
 }
-enum { DESKTOP_OPEN=41001,DESKTOP_EXIT,DESKTOP_ABOUT,DESKTOP_SETTINGS,DESKTOP_VIEW,DESKTOP_SCALE_BASE=41100,DESKTOP_SCALE_CUSTOM=41120 };
+enum { DESKTOP_OPEN=41001,DESKTOP_EXIT,DESKTOP_ABOUT,DESKTOP_SETTINGS,DESKTOP_VIEW,DESKTOP_AUDIO,DESKTOP_CONSOLE,DESKTOP_SCALE_BASE=41100,DESKTOP_SCALE_CUSTOM=41120 };
 static char *desktop_choose_game(HWND owner){
     WCHAR path[32768]={0};OPENFILENAMEW dialog;
     memset(&dialog,0,sizeof(dialog));dialog.lStructSize=sizeof(dialog);dialog.hwndOwner=owner;
@@ -121,6 +170,12 @@ static LRESULT CALLBACK desktop_window_proc(HWND hwnd,UINT message,WPARAM wparam
         case DESKTOP_EXIT:desktop_quit();return 0;
         case DESKTOP_SETTINGS:if(desktop_settings_callback)desktop_settings_callback(0);return 0;
         case DESKTOP_VIEW:if(desktop_settings_callback)desktop_settings_callback(2);return 0;
+        case DESKTOP_AUDIO:if(desktop_settings_callback)desktop_settings_callback(3);return 0;
+        case DESKTOP_CONSOLE:
+            if(desktop_console_toggle())
+                MessageBoxW(hwnd,L"无法切换调试终端。",L"调试终端",MB_OK|MB_ICONERROR);
+            CheckMenuItem(desktop_menu,DESKTOP_CONSOLE,MF_BYCOMMAND|(desktop_console_open?MF_CHECKED:MF_UNCHECKED));
+            return 0;
         case DESKTOP_ABOUT:
             MessageBoxW(hwnd,L"\u8bfa\u4e9a\u821f-NPE-\u5f15\u64ce\r\n\r\n\u4f5c\u8005\uff1aHelloClyde\r\n\r\n\u7eaf C11 + SDL2 \u5b9e\u73b0\u7684 NPE \u6e38\u620f\u5f15\u64ce\u3002",
                 L"\u5173\u4e8e\u8bfa\u4e9a\u821f-NPE-\u5f15\u64ce",MB_OK|MB_ICONINFORMATION);
@@ -152,6 +207,9 @@ static int desktop_menu_attach(SDL_Window *window){
     for(unsigned i=1;i<=10;++i){wchar_t text[16];swprintf(text,16,L"%u×",i);AppendMenuW(zoom,MF_STRING,DESKTOP_SCALE_BASE+i,text);}
     AppendMenuW(zoom,MF_SEPARATOR,0,NULL);AppendMenuW(zoom,MF_STRING|MF_GRAYED,DESKTOP_SCALE_CUSTOM,L"自定义大小");
     AppendMenuW(options,MF_POPUP,(UINT_PTR)zoom,L"窗口大小");
+    AppendMenuW(options,MF_STRING,DESKTOP_AUDIO,L"声音…");
+    AppendMenuW(options,MF_STRING|(desktop_console_open?MF_CHECKED:MF_UNCHECKED),
+                DESKTOP_CONSOLE,L"显示调试终端");
     AppendMenuW(about,MF_STRING,DESKTOP_ABOUT,L"\u5173\u4e8e\u8bfa\u4e9a\u821f-NPE-\u5f15\u64ce...");
     AppendMenuW(bar,MF_POPUP,(UINT_PTR)file,L"\u6587\u4ef6(&F)");
     AppendMenuW(bar,MF_POPUP,(UINT_PTR)options,L"\u8bbe\u7f6e(&S)");

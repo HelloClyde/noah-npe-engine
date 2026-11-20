@@ -2,10 +2,10 @@
 #include <imm.h>
 #include <SDL_syswm.h>
 enum { SW_TAB=5100,SW_LIST,SW_CHANGE,SW_ORIGINAL,SW_ROWS,SW_COLS,SW_ROW_SPIN,
-    SW_COL_SPIN,SW_RESET,SW_HINT,SW_ROW_LABEL,SW_COL_LABEL,SW_NOTE };
+    SW_COL_SPIN,SW_RESET,SW_HINT,SW_ROW_LABEL,SW_COL_LABEL,SW_NOTE,SW_SOUND,SW_VOLUME,SW_VOLUME_LABEL };
 typedef struct {
     HWND window,owner,tab,list,change,original,rows,cols,hint,row_label,col_label,note;
-    HWND row_spin,col_spin;
+    HWND row_spin,col_spin,sound,volume,volume_label;
     HIMC capture_ime;int ime_detached;
     HFONT font;NpeSettings value;unsigned page;int capturing,done,accepted,scale;
 } SettingsWindow;
@@ -44,13 +44,22 @@ static void settings_win_capture_end(SettingsWindow *s){
     if(s->ime_detached){ImmAssociateContext(s->window,s->capture_ime);s->ime_detached=0;}
     s->capturing=0;
 }
+static void settings_win_audio_preview(SettingsWindow *s){
+    wchar_t label[32];
+    swprintf(label,32,L"音量 %u%%",s->value.volume);
+    SetWindowTextW(s->volume_label,label);
+    EnableWindow(s->volume,!s->value.sound_muted);
+    npe_sound_set_volume(game_sound_player,s->value.sound_muted?0:s->value.volume);
+}
 static void settings_win_page(SettingsWindow *s,unsigned page){
-    settings_win_capture_end(s);s->page=page;int map=page==2;
-    ShowWindow(s->list,map?SW_HIDE:SW_SHOW);ShowWindow(s->change,map?SW_HIDE:SW_SHOW);
+    settings_win_capture_end(s);s->page=page;int map=page==2,sound=page==3;
+    ShowWindow(s->list,(map||sound)?SW_HIDE:SW_SHOW);ShowWindow(s->change,(map||sound)?SW_HIDE:SW_SHOW);
     HWND controls[]={s->original,s->rows,s->cols,s->row_spin,s->col_spin,s->row_label,s->col_label,s->note};
     for(unsigned i=0;i<sizeof(controls)/sizeof(controls[0]);++i)ShowWindow(controls[i],map?SW_SHOW:SW_HIDE);
-    SetWindowTextW(s->hint,map?L"设置地图显示的 tile 行数和列数。":L"选中功能后点击“更改绑定”，或双击当前绑定。");
-    EnableWindow(s->change,TRUE);if(!map)settings_win_list(s);settings_win_map_enable(s);
+    ShowWindow(s->sound,sound?SW_SHOW:SW_HIDE);ShowWindow(s->volume,sound?SW_SHOW:SW_HIDE);
+    ShowWindow(s->volume_label,sound?SW_SHOW:SW_HIDE);
+    SetWindowTextW(s->hint,sound?L"调整会立即生效，取消可恢复。":map?L"设置地图显示的 tile 行数和列数。":L"选中功能后点击“更改绑定”，或双击当前绑定。");
+    EnableWindow(s->change,TRUE);if(!map&&!sound)settings_win_list(s);settings_win_map_enable(s);
 }
 static void settings_win_capture(SettingsWindow *s){
     if(ListView_GetNextItem(s->list,-1,LVNI_SELECTED)<0)return;
@@ -106,11 +115,23 @@ static LRESULT CALLBACK settings_win_proc(HWND window,UINT message,WPARAM wp,LPA
         if(note->idFrom==SW_TAB && note->code==TCN_SELCHANGE){settings_win_page(s,(unsigned)TabCtrl_GetCurSel(s->tab));return 0;}
         if(note->idFrom==SW_LIST && (note->code==NM_DBLCLK||note->code==NM_RETURN)){settings_win_capture(s);return 0;}
     }
+    if(message==WM_HSCROLL&&(HWND)lp==s->volume&&s->volume){
+        s->value.volume=(unsigned)SendMessageW(s->volume,TBM_GETPOS,0,0);
+        settings_win_audio_preview(s);
+        return 0;
+    }
     if(message==WM_COMMAND){
         switch(LOWORD(wp)){
             case SW_CHANGE:settings_win_capture(s);return 0;
             case SW_ORIGINAL:settings_win_map_enable(s);return 0;
+            case SW_SOUND:
+                s->value.sound_muted=SendMessageW(s->sound,BM_GETCHECK,0,0)!=BST_CHECKED;
+                settings_win_audio_preview(s);
+                return 0;
             case SW_RESET:settings_defaults(&s->value);SendMessageW(s->original,BM_SETCHECK,BST_CHECKED,0);
+                SendMessageW(s->sound,BM_SETCHECK,BST_CHECKED,0);
+                SendMessageW(s->volume,TBM_SETPOS,TRUE,s->value.volume);
+                settings_win_audio_preview(s);
                 SetWindowTextW(s->rows,L"14");SetWindowTextW(s->cols,L"25");settings_win_page(s,s->page);return 0;
             case IDOK:{
                 if(SendMessageW(s->original,BM_GETCHECK,0,0)==BST_CHECKED)s->value.rows=s->value.cols=0;
@@ -126,7 +147,7 @@ static LRESULT CALLBACK settings_win_proc(HWND window,UINT message,WPARAM wp,LPA
     return DefWindowProcW(window,message,wp,lp);
 }
 static int settings_windows_dialog(NpeSettings *edited,unsigned page){
-    INITCOMMONCONTROLSEX common={sizeof(common),ICC_LISTVIEW_CLASSES|ICC_TAB_CLASSES|ICC_UPDOWN_CLASS};InitCommonControlsEx(&common);
+    INITCOMMONCONTROLSEX common={sizeof(common),ICC_LISTVIEW_CLASSES|ICC_TAB_CLASSES|ICC_UPDOWN_CLASS|ICC_BAR_CLASSES};InitCommonControlsEx(&common);
     WNDCLASSW cls;memset(&cls,0,sizeof(cls));cls.lpfnWndProc=settings_win_proc;cls.hInstance=GetModuleHandleW(NULL);
     cls.hIcon=LoadIconW(GetModuleHandleW(NULL),MAKEINTRESOURCEW(101));
     cls.hCursor=LoadCursorW(NULL,MAKEINTRESOURCEW(32512));cls.hbrBackground=(HBRUSH)(COLOR_BTNFACE+1);cls.lpszClassName=L"NoahNpeSettings";
@@ -142,8 +163,8 @@ static int settings_windows_dialog(NpeSettings *edited,unsigned page){
         WS_CAPTION|WS_SYSMENU,CW_USEDEFAULT,CW_USEDEFAULT,size.right-size.left,size.bottom-size.top,s.owner,NULL,GetModuleHandleW(NULL),&s);
     if(!s.window){DeleteObject(s.font);return 0;}
     s.tab=settings_win_control(&s,0,WC_TABCONTROLW,L"",WS_TABSTOP,16,14,588,34,SW_TAB);
-    const wchar_t *tabs[]={L"键盘",L"手柄",L"地图视野"};
-    for(unsigned i=0;i<3;++i){TCITEMW item;memset(&item,0,sizeof(item));item.mask=TCIF_TEXT;item.pszText=(wchar_t *)tabs[i];SendMessageW(s.tab,TCM_INSERTITEMW,i,(LPARAM)&item);}
+    const wchar_t *tabs[]={L"键盘",L"手柄",L"地图视野",L"声音"};
+    for(unsigned i=0;i<sizeof(tabs)/sizeof(*tabs);++i){TCITEMW item;memset(&item,0,sizeof(item));item.mask=TCIF_TEXT;item.pszText=(wchar_t *)tabs[i];SendMessageW(s.tab,TCM_INSERTITEMW,i,(LPARAM)&item);}
     s.hint=settings_win_control(&s,0,L"STATIC",L"",0,20,60,575,34,SW_HINT);
     s.list=settings_win_control(&s,WS_EX_CLIENTEDGE,WC_LISTVIEWW,L"",WS_TABSTOP|LVS_REPORT|LVS_SINGLESEL|LVS_SHOWSELALWAYS,20,100,575,280,SW_LIST);
     ListView_SetExtendedListViewStyle(s.list,LVS_EX_FULLROWSELECT|LVS_EX_DOUBLEBUFFER|LVS_EX_GRIDLINES);
@@ -166,12 +187,20 @@ static int settings_windows_dialog(NpeSettings *edited,unsigned page){
     settings_win_control(&s,0,L"BUTTON",L"恢复默认",WS_TABSTOP|BS_PUSHBUTTON,20,444,120,32,SW_RESET);
     settings_win_control(&s,0,L"BUTTON",L"保存",WS_TABSTOP|BS_DEFPUSHBUTTON,365,444,110,32,IDOK);
     settings_win_control(&s,0,L"BUTTON",L"取消",WS_TABSTOP|BS_PUSHBUTTON,485,444,110,32,IDCANCEL);
+    s.sound=settings_win_control(&s,0,L"BUTTON",L"开启声音",WS_TABSTOP|BS_AUTOCHECKBOX,26,106,300,28,SW_SOUND);
+    s.volume_label=settings_win_control(&s,0,L"STATIC",L"",0,26,156,300,26,SW_VOLUME_LABEL);
+    s.volume=settings_win_control(&s,0,TRACKBAR_CLASSW,L"",WS_TABSTOP|TBS_AUTOTICKS,26,189,510,40,SW_VOLUME);
+    SendMessageW(s.sound,BM_SETCHECK,s.value.sound_muted?BST_UNCHECKED:BST_CHECKED,0);
+    SendMessageW(s.volume,TBM_SETRANGE,TRUE,MAKELPARAM(0,100));
+    SendMessageW(s.volume,TBM_SETTICFREQ,10,0);
+    SendMessageW(s.volume,TBM_SETPOS,TRUE,s.value.volume);
+    settings_win_audio_preview(&s);
     TabCtrl_SetCurSel(s.tab,(int)page);settings_win_page(&s,page);
 #ifdef NPE_NATIVE_SETTINGS_TEST_HOOK
     NPE_NATIVE_SETTINGS_TEST_HOOK(&s);
 #endif
     if(s.owner)EnableWindow(s.owner,FALSE);
-    ShowWindow(s.window,SW_SHOW);SetForegroundWindow(s.window);SetFocus(page==2?s.original:s.list);
+    ShowWindow(s.window,SW_SHOW);SetForegroundWindow(s.window);SetFocus(page==3?s.sound:page==2?s.original:s.list);
     while(!s.done){
         MSG msg;while(PeekMessageW(&msg,NULL,0,0,PM_REMOVE)){
             if(msg.message==WM_QUIT){SDL_Event quit;SDL_zero(quit);quit.type=SDL_QUIT;SDL_PushEvent(&quit);s.done=1;break;}
@@ -203,5 +232,6 @@ static int settings_windows_dialog(NpeSettings *edited,unsigned page){
     settings_win_capture_end(&s);DestroyWindow(s.window);DeleteObject(s.font);
     if(s.owner)SetForegroundWindow(s.owner);
     if(s.accepted)*edited=s.value;
+    else npe_sound_set_volume(game_sound_player,edited->sound_muted?0:edited->volume);
     return s.accepted;
 }

@@ -37,7 +37,7 @@ int main(void){
     settings_bind_button(&settings,4,SDL_CONTROLLER_BUTTON_X);
     assert(settings.buttons[6]==SDL_CONTROLLER_BUTTON_A);
     assert(settings_pad_button(SDL_CONTROLLER_BUTTON_X)==SDL_CONTROLLER_BUTTON_A);
-    settings.rows=14;settings.cols=25;assert(!settings_save(&settings));
+    settings.rows=14;settings.cols=25;settings.sound_muted=1;settings.volume=37;assert(!settings_save(&settings));
     NpeSettings expected=settings;settings_loaded=0;settings_load();assert(!memcmp(&settings,&expected,sizeof(settings)));
     char text[1024];assert(settings_encode(&settings,text,sizeof(text))>0);
     NpeSettings decoded;assert(!settings_decode(text,&decoded));assert(!memcmp(&decoded,&settings,sizeof(settings)));
@@ -51,6 +51,7 @@ int main(void){
     assert(!settings_decode(legacy,&decoded));
     assert(!memcmp(old.keys,decoded.keys,10*sizeof(old.keys[0]))&&!memcmp(old.buttons,decoded.buttons,11));
     assert(decoded.rows==14&&decoded.cols==25&&settings_valid(&decoded));
+    assert(!decoded.sound_muted&&decoded.volume==100);
     settings_bind_key(&settings,10,SDLK_q);settings_bind_key(&settings,11,SDLK_e);
     assert(settings_keyboard(SDLK_q,4)==SDLK_j&&settings_keyboard(SDLK_e,4)==SDLK_l);
     assert(settings_keyboard(SDLK_a,1)==SDLK_LEFT);
