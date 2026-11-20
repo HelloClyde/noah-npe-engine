@@ -21,6 +21,7 @@ int main(void){
     assert(!SDL_Init(SDL_INIT_EVENTS));
     mode=1;check(0,1,SDLK_UP);check(0,0,SDLK_UP);check(4,1,SDLK_RETURN);
     check(5,1,SDLK_F4);check(6,1,SDLK_SPACE);check(7,1,SDLK_u);
+    check(10,1,SDLK_j);check(10,0,SDLK_j);check(11,1,SDLK_l);check(11,0,SDLK_l);
     mode=2;check(4,1,SDLK_SPACE);mode=5;check(4,1,SDLK_SPACE);
     mode=3;check(4,1,SDLK_RETURN);
     mode=8;for(unsigned i=4;i<=7;++i)check(i,1,SDLK_a+i-4);

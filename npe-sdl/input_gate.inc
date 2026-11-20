@@ -4,7 +4,7 @@ static unsigned game_input_busy;
 static int game_input_quit_pending;
 static Uint8 game_input_keys[SDL_NUM_SCANCODES],game_input_key_blocked[SDL_NUM_SCANCODES];
 static Uint8 game_input_buttons[SDL_CONTROLLER_BUTTON_MAX],game_input_button_blocked[SDL_CONTROLLER_BUTTON_MAX];
-static Uint8 game_input_mobile[10],game_input_mobile_blocked[10];
+static Uint8 game_input_mobile[12],game_input_mobile_blocked[12];
 static Sint16 game_input_axes[2];
 static Uint8 game_input_axis_blocked[2];
 static SDL_JoystickID game_input_pad_id=-1;
@@ -55,7 +55,7 @@ static int game_input_gate_event(SDL_Event *event){
     }
     if(event->type==SDL_USEREVENT && event->user.code==0x4e50454b){
         unsigned action=(unsigned)(uintptr_t)event->user.data1;
-        if(action<10){
+        if(action<sizeof(game_input_mobile)){
             int down=event->user.data2!=NULL,blocked=game_input_mobile_blocked[action];
             game_input_mobile[action]=(Uint8)down;
             if(!down)game_input_mobile_blocked[action]=0;
@@ -89,7 +89,7 @@ static void game_input_begin(void){
             int value=game_pad?SDL_GameControllerGetAxis(game_pad,i?SDL_CONTROLLER_AXIS_LEFTY:SDL_CONTROLLER_AXIS_LEFTX):0;
             if(abs(value)>=16000 || abs(game_input_axes[i])>=16000)game_input_axis_blocked[i]=1;
         }
-        for(unsigned i=0;i<10;++i)if(game_input_mobile[i])game_input_mobile_blocked[i]=1;
+        for(unsigned i=0;i<sizeof(game_input_mobile);++i)if(game_input_mobile[i])game_input_mobile_blocked[i]=1;
         game_pad_reset();
     }
     ++game_input_busy;game_input_drain_busy();

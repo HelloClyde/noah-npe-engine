@@ -56,6 +56,10 @@ jobs:
       - run: python3 tools/fetch_sdl.py
       - name: Install Android toolchain
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.2.12479018' 'cmake;3.22.1'
+      - name: Check touch layout and gestures
+        run: |
+          javac -d touch-tests android/app/src/main/java/com/helloclyde/npe/TouchControls.java android/tests/TouchControlsTest.java
+          java -cp touch-tests com.helloclyde.npe.TouchControlsTest
       - name: Build APK (ARM64 and x86_64)
         run: gradle -p android assembleDebug --no-daemon
       - name: Check packaged libraries and fonts

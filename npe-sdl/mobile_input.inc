@@ -3,7 +3,7 @@
 #define NPE_MOBILE_EVENT_CODE 0x4e50454b
 static int game_mobile_event(SDL_Event *event) {
     static const SDL_Keycode keys[]={SDLK_UP,SDLK_RIGHT,SDLK_DOWN,SDLK_LEFT,
-        SDLK_RETURN,SDLK_F4,SDLK_SPACE,SDLK_u,SDLK_p,SDLK_n};
+        SDLK_RETURN,SDLK_F4,SDLK_SPACE,SDLK_u,SDLK_p,SDLK_n,SDLK_j,SDLK_l};
     if(event->type!=SDL_USEREVENT || event->user.code!=NPE_MOBILE_EVENT_CODE)return 1;
     unsigned action=(unsigned)(uintptr_t)event->user.data1;
     if(action>=sizeof(keys)/sizeof(keys[0]))return 0;

@@ -44,7 +44,7 @@ int main(void){
     game_input_reset();SDL_zero(event);event.type=SDL_CONTROLLERAXISMOTION;event.caxis.which=42;event.caxis.axis=SDL_CONTROLLER_AXIS_LEFTX;event.caxis.value=30000;
     assert(game_input_gate_event(&event));game_input_fence();assert(!game_input_gate_event(&event));
     event.caxis.value=0;assert(!game_input_gate_event(&event));event.caxis.value=30000;assert(game_input_gate_event(&event));
-    game_input_reset();SDL_zero(event);event.type=SDL_USEREVENT;event.user.code=0x4e50454b;event.user.data1=(void *)(uintptr_t)4;event.user.data2=(void *)(uintptr_t)1;
+    game_input_reset();SDL_zero(event);event.type=SDL_USEREVENT;event.user.code=0x4e50454b;event.user.data1=(void *)(uintptr_t)11;event.user.data2=(void *)(uintptr_t)1;
     assert(game_input_gate_event(&event));game_input_fence();assert(!game_input_gate_event(&event));
     event.user.data2=NULL;assert(!game_input_gate_event(&event));event.user.data2=(void *)(uintptr_t)1;assert(game_input_gate_event(&event));
     game_input_reset();game_input_begin();game_input_begin();game_input_end();assert(game_input_busy==1);game_input_end();assert(!game_input_busy);
