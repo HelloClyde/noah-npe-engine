@@ -2071,8 +2071,9 @@ static void npc_text_layout_draw(StoryTextDraw *draw,uint32_t address,const uint
         if(!text_runtime_byte(draw,address+pos))return;
     }
 }
-static void text_page_capture(StoryTextDraw *draw,uint32_t address){
+static void text_page_capture(StoryTextDraw *draw,uint32_t address,int clear){
     NpeTextPage *page=draw->page;if(!page)return;
+    if(!clear&&!text_runtime_byte(draw,address))return;
     if(page->count && page->count<NPE_TEXT_PAGE_GLYPHS)page->glyphs[page->count++].width=0;
     unsigned pos=0,marked=0;
     while(pos<256 && page->count<NPE_TEXT_PAGE_GLYPHS){
@@ -2126,7 +2127,7 @@ void npe_text_page_draw(const NpeTextPage *page,uint8_t *pixels,unsigned width,u
 }
 static void world_story_text_draw(void *context,uint32_t address,const uint16_t rect[4],int clear){
     StoryTextDraw *draw=context;
-    text_page_capture(draw,address);
+    text_page_capture(draw,address,clear);
     unsigned left=rect[0],top=rect[1],right=rect[2],bottom=rect[3];
     if(clear&&left<=right&&top<=bottom){
         for(unsigned y=top;y<=bottom&&y<NPE_HEIGHT;++y)
@@ -2173,9 +2174,10 @@ int npe_render_world_story_page_layout(const NpeFile *file,const NpeFont *font,N
        A different live owner must be closed by its caller, while still alive. */
     if(!file->rpg_runtime&&npe_world_resources_open((NpeFile *)file,world))return -1;
     if(npe_rpg_runtime_owner(file)!=world)return -1;
-    if(page)memset(page,0,sizeof(*page));
-    StoryTextDraw draw={file,font,pixels,0,0,page};
+    NpeTextPage captured={0};
+    StoryTextDraw draw={file,font,pixels,0,0,page?&captured:NULL};
     int result=npe_rpg_runtime_story_page(file,world_story_text_draw,&draw,pixels);
+    if(page&&captured.valid&&!result&&!draw.error)*page=captured;
     return result||draw.error?-1:0;
 }
 
@@ -2184,9 +2186,10 @@ int npe_render_world_npc_page_layout(const NpeFile *file,const NpeFont *font,Npe
     if(!file||!font||!font->data16||!world||!pixels)return -1;
     if(!file->rpg_runtime&&npe_world_resources_open((NpeFile *)file,world))return -1;
     if(npe_rpg_runtime_owner(file)!=world)return -1;
-    if(page)memset(page,0,sizeof(*page));
-    StoryTextDraw draw={file,font,pixels,0,1,page};
+    NpeTextPage captured={0};
+    StoryTextDraw draw={file,font,pixels,0,1,page?&captured:NULL};
     int result=npe_rpg_runtime_npc_page(file,world_story_text_draw,&draw,pixels,entry,load,load_context);
+    if(page&&captured.valid&&!result&&!draw.error)*page=captured;
     return result||draw.error?-1:0;
 }
 
