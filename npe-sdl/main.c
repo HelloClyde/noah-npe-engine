@@ -52,7 +52,15 @@ static void request_settings_page(unsigned page){
     event.user.code=0x4e504553;event.user.data1=(void *)(uintptr_t)page;
     SDL_PushEvent(&event);
 }
+static void game_keyboard_controls(void){
+    /* All game/quiz input is physical keys, not IME-composed text. SDL2
+       enables text input by default, which lets Chinese IMEs consume letters. */
+    desktop_keyboard_controls();
+    SDL_StopTextInput();
+}
 static int game_host_event(SDL_Event *event){
+    if(event->type==SDL_WINDOWEVENT && event->window.event==SDL_WINDOWEVENT_FOCUS_GAINED)
+        game_keyboard_controls();
     if(event->type==SDL_USEREVENT && event->user.code==0x4e504553){
         show_settings_page((unsigned)(uintptr_t)event->user.data1);return 0;
     }
@@ -3576,6 +3584,7 @@ static int run(int argc, char **argv) {
     window = SDL_CreateWindow("诺亚舟-NPE-引擎", SDL_WINDOWPOS_CENTERED,
                               SDL_WINDOWPOS_CENTERED, 960, 480, SDL_WINDOW_RESIZABLE);
     if (!window) goto sdl_error;
+    game_keyboard_controls();
     desktop_settings_callback=request_settings_page;
 #ifdef __APPLE__
     npe_macos_settings_menu();

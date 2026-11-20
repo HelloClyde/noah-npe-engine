@@ -68,7 +68,39 @@ int main(int argc,char **argv){
     assert(!desktop_menu_attach(game));
     assert(SendMessageW(desktop_window,WM_GETICON,ICON_BIG,0));
     assert(SendMessageW(desktop_window,WM_GETICON,ICON_SMALL,0));
-    settings_defaults(&settings);settings_loaded=1;NpeSettings edited=settings;
+    /* Drive the real Win32 -> SDL -> remapping path without desktop input. */
+    SendMessageW(desktop_window,WM_SETFOCUS,0,0);
+    SDL_StartTextInput();assert(SDL_IsTextInputActive());
+    game_keyboard_controls();assert(!SDL_IsTextInputActive());
+    HIMC active=ImmGetContext(desktop_window);assert(!active);
+    HIMC switched=ImmCreateContext();assert(switched);ImmAssociateContext(desktop_window,switched);
+    SendMessageW(desktop_window,WM_INPUTLANGCHANGE,0,(LPARAM)GetKeyboardLayout(0));
+    assert(!ImmGetContext(desktop_window));ImmDestroyContext(switched);
+    settings_defaults(&settings);settings_loaded=1;
+    settings_bind_key(&settings,0,SDLK_w);settings_bind_key(&settings,1,SDLK_s);
+    settings_bind_key(&settings,2,SDLK_a);settings_bind_key(&settings,3,SDLK_d);
+    uint16_t map_mode=1;game_pad_mode=&map_mode;game_input_reset();
+    const unsigned scans[]={0x11,0x1f,0x1e,0x20};
+    const SDL_Keycode mapped[]={SDLK_UP,SDLK_DOWN,SDLK_LEFT,SDLK_RIGHT};
+    for(unsigned i=0;i<4;++i){
+        SDL_Event pending;while(SDL_PollEvent(&pending)){}
+        LPARAM flags=1L|((LPARAM)scans[i]<<16);
+        SendMessageW(desktop_window,WM_KEYDOWN,VK_PROCESSKEY,flags);
+        SendMessageW(desktop_window,WM_KEYUP,VK_PROCESSKEY,flags|((LPARAM)1<<30)|((LPARAM)1<<31));
+        unsigned down=0,up=0;
+        while(game_PollEvent(&pending)){
+            if(pending.type==SDL_KEYDOWN&&pending.key.keysym.sym==mapped[i])++down;
+            if(pending.type==SDL_KEYUP&&pending.key.keysym.sym==mapped[i])++up;
+        }
+        assert(down==1&&up==1);
+    }
+    SDL_StartTextInput();assert(SDL_IsTextInputActive());
+    SDL_Event regained;SDL_zero(regained);regained.type=SDL_WINDOWEVENT;
+    regained.window.event=SDL_WINDOWEVENT_FOCUS_GAINED;
+    assert(game_host_event(&regained)&&!SDL_IsTextInputActive());
+    game_pad_mode=NULL;
+    puts("Gameplay IME: text composition disabled on creation/focus; real Win32 PROCESSKEY WASD generates mapped SDL down/up events");
+    settings_defaults(&settings);NpeSettings edited=settings;
     scenario=0;assert(!settings_windows_dialog(&edited,0));assert(edited.keys[0]==SDLK_UP);
     scenario=1;assert(settings_windows_dialog(&edited,0));assert(edited.rows==14&&edited.cols==25);
     scenario=2;assert(settings_windows_dialog(&edited,0));assert(!edited.rows&&edited.keys[0]==SDLK_UP);

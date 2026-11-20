@@ -2,8 +2,16 @@ static void (*desktop_settings_callback)(unsigned);
 /* Native desktop menus; the game still consumes SDL input events. */
 #ifdef _WIN32
 #include <SDL_syswm.h>
+#include <imm.h>
 static HWND desktop_window;
 static WNDPROC desktop_original_proc;
+static HIMC desktop_ime_context;
+static int desktop_ime_detached;
+static void desktop_keyboard_controls(void){
+    if(!desktop_window)return;
+    HIMC prior=ImmAssociateContext(desktop_window,NULL);
+    if(!desktop_ime_detached){desktop_ime_context=prior;desktop_ime_detached=1;}
+}
 static HMENU desktop_menu;
 static char *desktop_next_game;
 static int desktop_drag_hit;
@@ -111,7 +119,9 @@ static LRESULT CALLBACK desktop_window_proc(HWND hwnd,UINT message,WPARAM wparam
             game_pad_reset();return 0;
         }
     }
-    return CallWindowProcW(desktop_original_proc,hwnd,message,wparam,lparam);
+    LRESULT result=CallWindowProcW(desktop_original_proc,hwnd,message,wparam,lparam);
+    if(message==WM_SETFOCUS || message==WM_INPUTLANGCHANGE)desktop_keyboard_controls();
+    return result;
 }
 static int desktop_menu_attach(SDL_Window *window){
     SDL_SysWMinfo info;SDL_VERSION(&info.version);
@@ -136,11 +146,14 @@ static int desktop_menu_attach(SDL_Window *window){
     if(!SetMenu(hwnd,bar)){DestroyMenu(bar);return -1;}
     desktop_window=hwnd;desktop_menu=bar;
     desktop_original_proc=(WNDPROC)SetWindowLongPtrW(hwnd,GWLP_WNDPROC,(LONG_PTR)desktop_window_proc);
+    desktop_keyboard_controls();
     DrawMenuBar(hwnd);SDL_SetWindowSize(window,960,480);return 0;
 }
 static void desktop_menu_detach(void){
     if(desktop_window){
         desktop_drag_end(desktop_window);
+        if(desktop_ime_detached)ImmAssociateContext(desktop_window,desktop_ime_context);
+        desktop_ime_detached=0;desktop_ime_context=NULL;
         if(desktop_original_proc)SetWindowLongPtrW(desktop_window,GWLP_WNDPROC,(LONG_PTR)desktop_original_proc);
         SetMenu(desktop_window,NULL);
     }
@@ -148,6 +161,7 @@ static void desktop_menu_detach(void){
     desktop_window=NULL;desktop_original_proc=NULL;desktop_menu=NULL;
 }
 #else
+static void desktop_keyboard_controls(void){}
 static int desktop_menu_attach(SDL_Window *window){(void)window;return 0;}
 static void desktop_menu_detach(void){}
 #endif
