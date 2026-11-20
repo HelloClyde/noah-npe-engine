@@ -29,7 +29,7 @@ public class GameActivity extends SDLActivity {
     private final ArrayList<Press> presses = new ArrayList<>();
     private RelativeLayout controls;
     private Pad pad;
-    private int lastWidth, lastHeight, transparency = 35;
+    private int lastWidth, lastHeight, lastSize, transparency = 35, buttonSize = 100;
     private static native void nativeButton(int action, boolean down);
     @Override protected String[] getLibraries() { return new String[]{"SDL2", "main"}; }
     @Override protected String[] getArguments() { return new String[]{getIntent().getStringExtra("game")}; }
@@ -39,6 +39,7 @@ public class GameActivity extends SDLActivity {
         super.onCreate(state);
         if (mLayout == null || mSurface == null) return;
         transparency = Math.max(0, Math.min(90, getPreferences(0).getInt("touch_transparency", 35)));
+        buttonSize = TouchControls.clampSize(getPreferences(0).getInt("touch_size", 100));
         mLayout.setMotionEventSplittingEnabled(true);
         mLayout.setOnApplyWindowInsetsListener((view, insets) -> {
             int left, top, right, bottom;
@@ -78,13 +79,13 @@ public class GameActivity extends SDLActivity {
         if (mLayout == null || mSurface == null) return;
         int pixelsW = mLayout.getWidth()-mLayout.getPaddingLeft()-mLayout.getPaddingRight();
         int pixelsH = mLayout.getHeight()-mLayout.getPaddingTop()-mLayout.getPaddingBottom();
-        if (pixelsW <= 0 || pixelsH <= 0 || (lastWidth==pixelsW && lastHeight==pixelsH)) return;
+        if (pixelsW <= 0 || pixelsH <= 0 || (lastWidth==pixelsW && lastHeight==pixelsH && lastSize==buttonSize)) return;
         releaseControls(); presses.clear();
         if (controls != null) mLayout.removeView(controls);
-        lastWidth = pixelsW; lastHeight = pixelsH;
+        lastWidth = pixelsW; lastHeight = pixelsH; lastSize = buttonSize;
         float density = getResources().getDisplayMetrics().density;
         int width = (int)(pixelsW/density), height = (int)(pixelsH/density);
-        TouchControls.Layout layout = new TouchControls.Layout(width, height);
+        TouchControls.Layout layout = new TouchControls.Layout(width, height, buttonSize);
         // Full game surface: controls no longer reserve or shrink a bottom strip.
         mSurface.setLayoutParams(new RelativeLayout.LayoutParams(-1,-1));
         controls = new RelativeLayout(this); controls.setMotionEventSplittingEnabled(true);
@@ -99,10 +100,10 @@ public class GameActivity extends SDLActivity {
                 layout.right+TouchControls.column(action)*layout.unit,
                 layout.top+TouchControls.row(action)*layout.unit);
         }
-        utility("选项左",10,layout.left,layout.utilityTop,layout.utilityUnit);
-        utility("选项右",11,layout.left+layout.utilityUnit,layout.utilityTop,layout.utilityUnit);
-        utility("说明上页",8,width-12-layout.utilityUnit*2,layout.utilityTop,layout.utilityUnit);
-        utility("说明下页",9,width-12-layout.utilityUnit,layout.utilityTop,layout.utilityUnit);
+        utility("选项左",10,layout.left,layout.utilityTop,layout.utilityUnit,layout.utilityHeight);
+        utility("选项右",11,layout.left+layout.utilityUnit,layout.utilityTop,layout.utilityUnit,layout.utilityHeight);
+        utility("说明上页",8,width-12-layout.utilityUnit*2,layout.utilityTop,layout.utilityUnit,layout.utilityHeight);
+        utility("说明下页",9,width-12-layout.utilityUnit,layout.utilityTop,layout.utilityUnit,layout.utilityHeight);
         controls.setAlpha((100-transparency)/100f);
         // This entry is outside the faded controls, so settings remain reachable.
         Button more = key("更多",0xff343b48,false);
@@ -123,8 +124,8 @@ public class GameActivity extends SDLActivity {
         if (round) shape.setShape(GradientDrawable.OVAL); else shape.setCornerRadius(dp(10));
         shape.setStroke(dp(1),0xffa2adbb); key.setBackground(new RippleDrawable(ColorStateList.valueOf(0x66ffffff),shape,null)); return key;
     }
-    private void utility(String label,int action,int x,int y,int width) {
-        Button key = key(label,0xff343b48,false); bind(key,action); place(key,width-4,48,x+2,y);
+    private void utility(String label,int action,int x,int y,int width,int height) {
+        Button key = key(label,0xff343b48,false); bind(key,action); place(key,Math.max(1,width-4),height,x+2,y);
     }
     private void bind(Button key,int action) { Press press = new Press(key,action); presses.add(press); key.setOnTouchListener(press); }
     private final class Press implements View.OnTouchListener {
@@ -180,9 +181,10 @@ public class GameActivity extends SDLActivity {
     private void showMore() {
         releaseControls();
         new AlertDialog.Builder(this).setTitle("触屏设置")
-            .setItems(new String[]{"按键透明度", "按键说明", "返回游戏列表"},(d,which)-> {
-                if(which==0)showTransparency();
-                else if(which==1)new AlertDialog.Builder(this).setTitle("任天堂布局")
+            .setItems(new String[]{"按键透明度", "按键大小", "按键说明", "返回游戏列表"},(d,which)-> {
+                if(which==0)showTouchSlider(false);
+                else if(which==1)showTouchSlider(true);
+                else if(which==2)new AlertDialog.Builder(this).setTitle("任天堂布局")
                     .setMessage("左侧十字键：按住移动，滑动换向。\nA：确认／对话继续；B：返回／游戏菜单；X：发起对话；Y：卸装。\n选项左／右：购买框切换是／否。说明上页／下页：P／N。购买物品说明也可用十字键左右翻页。\n答题时 A／B／X／Y 分别对应答案 A／B／C／D。")
                     .setPositiveButton("知道了",null).show();
                 else new AlertDialog.Builder(this).setTitle("返回游戏列表？")
@@ -190,22 +192,38 @@ public class GameActivity extends SDLActivity {
                     .setPositiveButton("返回列表",(a,b)->finish()).setNegativeButton("继续游戏",null).show();
             }).show();
     }
-    private void showTransparency() {
-        final int previous=transparency;
+    private void previewTouchSetting(boolean size, int value) {
+        if (size) {
+            buttonSize = value;
+            layoutControls();
+        } else {
+            transparency = value;
+            controls.setAlpha((100-value)/100f);
+        }
+    }
+
+    private void showTouchSlider(boolean size) {
+        int previous = size ? buttonSize : transparency;
+        int minimum = size ? TouchControls.MIN_SIZE : 0;
+        int maximum = size ? TouchControls.MAX_SIZE : 90;
+        String title = size ? "按键大小" : "按键透明度";
+        String preference = size ? "touch_size" : "touch_transparency";
         LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(dp(20),dp(12),dp(20),0);
         TextView value=new TextView(this);value.setTextColor(Color.WHITE);box.addView(value);
-        SeekBar slider=new SeekBar(this);slider.setMax(90);slider.setProgress(transparency);box.addView(slider,new LinearLayout.LayoutParams(-1,dp(56)));
-        value.setText("按键透明度："+transparency+"%（越大越透明）");
+        SeekBar slider=new SeekBar(this);slider.setMax(maximum-minimum);slider.setProgress(previous-minimum);box.addView(slider,new LinearLayout.LayoutParams(-1,dp(56)));
+        value.setText(previous+"%");
         slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             public void onProgressChanged(SeekBar bar,int progress,boolean user) {
-                transparency=progress;controls.setAlpha((100-progress)/100f);value.setText("按键透明度："+progress+"%（越大越透明）");
+                int selected = minimum + progress;
+                previewTouchSetting(size, selected);
+                value.setText(selected+"%");
             }
             public void onStartTrackingTouch(SeekBar bar) {} public void onStopTrackingTouch(SeekBar bar) {}
         });
-        new AlertDialog.Builder(this).setTitle("按键透明度").setView(box)
-            .setPositiveButton("保存",(d,w)->getPreferences(0).edit().putInt("touch_transparency",transparency).apply())
-            .setNegativeButton("取消",(d,w)-> {transparency=previous;controls.setAlpha((100-previous)/100f);})
-            .setOnCancelListener(d->{transparency=previous;controls.setAlpha((100-previous)/100f);}).show();
+        new AlertDialog.Builder(this).setTitle(title).setView(box)
+            .setPositiveButton("保存",(d,w)->getPreferences(0).edit().putInt(preference,size?buttonSize:transparency).apply())
+            .setNegativeButton("取消",(d,w)->previewTouchSetting(size,previous))
+            .setOnCancelListener(d->previewTouchSetting(size,previous)).show();
     }
     private void releaseControls() {
         repeats.removeCallbacksAndMessages(null);if(pad!=null)pad.release();for(Press press:presses)press.release();

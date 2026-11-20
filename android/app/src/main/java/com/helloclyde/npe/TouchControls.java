@@ -3,13 +3,26 @@ package com.helloclyde.npe;
 /** Platform-independent touch geometry and press/release ownership. */
 final class TouchControls {
     interface Sink { void button(int action, boolean down); }
+    static final int MIN_SIZE = 80, MAX_SIZE = 150;
+    static int clampSize(int percent) {
+        return Math.max(MIN_SIZE, Math.min(MAX_SIZE, percent));
+    }
+
     static final class Layout {
-        final int unit, size, left, right, top, utilityTop, utilityUnit;
-        Layout(int width, int height) {
-            unit = Math.max(32, Math.min(52, Math.min((width - 32) / 6, (height - 80) / 3)));
-            size = unit * 3; left = 12; right = width - size - 12;
-            top = Math.max(60, height - size - 12); utilityTop = Math.max(8, top - 52);
-            utilityUnit = Math.min(size / 2, Math.max(48, (width - 104) / 4));
+        final int unit, size, left, right, top, utilityTop, utilityUnit, utilityHeight;
+        Layout(int width, int height, int percent) {
+            percent = clampSize(percent);
+            int preferredUnit = Math.round(52 * percent / 100f);
+            int preferredUtilityHeight = Math.round(48 * percent / 100f);
+            int maxUnit = Math.min((width - 32) / 6, (height - 64) / 3);
+            unit = Math.max(1, Math.min(preferredUnit, maxUnit));
+            size = unit * 3;
+            left = 12;
+            right = width - size - 12;
+            top = height - size - 12;
+            utilityHeight = Math.max(1, Math.min(preferredUtilityHeight, top - 12));
+            utilityTop = top - utilityHeight - 4;
+            utilityUnit = Math.min(Math.round(78 * percent / 100f), Math.max(1, (width - 104) / 4));
         }
     }
     // Nintendo diamond: X top, Y left, A right, B bottom.
