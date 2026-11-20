@@ -346,7 +346,7 @@ static int show_dialogue_pages(SDL_Window *window, SDL_Renderer *renderer,
     memcpy(pixels,base,sizeof(pixels));
     NpcTextLoad load={file,world};
     if(world->map_init_pending){
-        if(npe_render_world_npc_page(file,font,world,pixels,1,load_npc_text,&load))return -1;
+        if(npe_render_world_npc_page_layout(file,font,world,pixels,1,load_npc_text,&load,&game_view_text))return -1;
         draw_pixels(renderer,texture,pixels);
     }
     for(;;){
@@ -358,7 +358,7 @@ static int show_dialogue_pages(SDL_Window *window, SDL_Renderer *renderer,
         SDL_Keycode key=event.key.keysym.sym;
         if(key==SDLK_SPACE){
             if(world->text_more==1){
-                if(npe_render_world_npc_page(file,font,world,pixels,0,NULL,NULL))return -1;
+                if(npe_render_world_npc_page_layout(file,font,world,pixels,0,NULL,NULL,&game_view_text))return -1;
                 draw_pixels(renderer,texture,pixels);continue;
             }
             /*3B:76DA..76E8 restores and submits before dispatching followup. */
@@ -1267,7 +1267,7 @@ static void show_walk_story(SDL_Window *window, SDL_Renderer *renderer,
         if(!file->rpg_runtime&&npe_world_resources_open((NpeFile *)file,world))return;
         if(npe_rpg_runtime_owner(file)!=world||npe_rpg_runtime_text_prefix(file))return;
         for(;;){
-            if(npe_render_world_story_page(file,font,world,pixels)){
+            if(npe_render_world_story_page_layout(file,font,world,pixels,&game_view_text)){
                 fprintf(stderr,"native story text service failed\n");return;
             }
             draw_pixels(renderer,texture,pixels);

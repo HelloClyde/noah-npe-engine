@@ -1964,7 +1964,7 @@ int npe_render_gbk_dialogue(const NpeFont *font, const uint8_t *text,
     return 0;
 }
 
-typedef struct {const NpeFile *file;const NpeFont *font;uint8_t *pixels;int error,npc;} StoryTextDraw;
+typedef struct {const NpeFile *file;const NpeFont *font;uint8_t *pixels;int error,npc;NpeTextPage *page;} StoryTextDraw;
 static int story_text_glyph(const NpeFont *font,const uint8_t *text,unsigned count,
                             unsigned left,unsigned top,uint8_t *pixels){
     unsigned width;
@@ -2071,8 +2071,62 @@ static void npc_text_layout_draw(StoryTextDraw *draw,uint32_t address,const uint
         if(!text_runtime_byte(draw,address+pos))return;
     }
 }
+static void text_page_capture(StoryTextDraw *draw,uint32_t address){
+    NpeTextPage *page=draw->page;if(!page)return;
+    if(page->count && page->count<NPE_TEXT_PAGE_GLYPHS)page->glyphs[page->count++].width=0;
+    unsigned pos=0,marked=0;
+    while(pos<256 && page->count<NPE_TEXT_PAGE_GLYPHS){
+        uint8_t ch=text_runtime_byte(draw,address+pos++);if(draw->error||!ch)break;
+        NpeTextGlyph *g=page->glyphs+page->count;memset(g,0,sizeof(*g));
+        if(ch=='\r'||ch=='\n'){
+            uint8_t next=text_runtime_byte(draw,address+pos);
+            if(ch=='\r'&&next=='\n')++pos;
+            ++page->count;continue;
+        }
+        const uint8_t *bits;unsigned width;
+        if(draw->npc && marked && ch!=7){
+            bits=native_npc_fonts[1][ch];
+            for(unsigned y=0;y<16;++y)g->bits[y*2]=bits[y];
+            g->width=8;
+        }else if(draw->npc && (ch==6||ch==8)){
+            bits=native_npc_fonts[ch==6?0:2][text_runtime_byte(draw,address+pos++)];
+            for(unsigned y=0;y<16;++y)g->bits[y*2]=bits[y];
+            g->width=8;
+        }else if(draw->npc && ch<9){
+            marked=ch==7?!marked:1;continue;
+        }else{
+            uint8_t trail=ch>=0x80?text_runtime_byte(draw,address+pos++):0;
+            bits=glyph16(draw->font,ch,trail,&width);memcpy(g->bits,bits,32);g->width=(uint8_t)width;
+        }
+        ++page->count;
+    }
+    page->valid=!draw->error;
+}
+unsigned npe_text_page_lines(const NpeTextPage *page,unsigned width){
+    unsigned x=0,lines=1;if(!page||!width)return lines;
+    for(unsigned i=0;i<page->count;++i){unsigned w=page->glyphs[i].width;
+        if(!w){x=0;++lines;continue;}
+        if(x&&x+w>width){x=0;++lines;}x+=w;
+    }
+    return lines;
+}
+void npe_text_page_draw(const NpeTextPage *page,uint8_t *pixels,unsigned width,unsigned height,
+                        unsigned left,unsigned top,unsigned available){
+    unsigned x=0,y=top;if(!page||!pixels||!available)return;
+    for(unsigned i=0;i<page->count;++i){const NpeTextGlyph *g=page->glyphs+i;
+        if(!g->width){x=0;y+=16;continue;}
+        if(x&&x+g->width>available){x=0;y+=16;}
+        for(unsigned row=0;row<16&&y+row<height;++row){
+            unsigned mask=(unsigned)g->bits[row*2]<<8|g->bits[row*2+1];
+            for(unsigned col=0;col<g->width&&left+x+col<width;++col)
+                if(mask&(0x8000u>>col))pixels[(y+row)*width+left+x+col]=15;
+        }
+        x+=g->width;
+    }
+}
 static void world_story_text_draw(void *context,uint32_t address,const uint16_t rect[4],int clear){
     StoryTextDraw *draw=context;
+    text_page_capture(draw,address);
     unsigned left=rect[0],top=rect[1],right=rect[2],bottom=rect[3];
     if(clear&&left<=right&&top<=bottom){
         for(unsigned y=top;y<=bottom&&y<NPE_HEIGHT;++y)
@@ -2113,27 +2167,36 @@ static void world_story_text_draw(void *context,uint32_t address,const uint16_t 
         ++pos;
     }
 }
-int npe_render_world_story_page(const NpeFile *file,const NpeFont *font,NpeWorld *world,uint8_t *pixels){
+int npe_render_world_story_page_layout(const NpeFile *file,const NpeFont *font,NpeWorld *world,uint8_t *pixels,NpeTextPage *page){
     if(!file||!font||!font->data16||!world||!pixels)return -1;
     /* Standalone render callers acquire the same World-owned RAM as main.
        A different live owner must be closed by its caller, while still alive. */
     if(!file->rpg_runtime&&npe_world_resources_open((NpeFile *)file,world))return -1;
     if(npe_rpg_runtime_owner(file)!=world)return -1;
-    StoryTextDraw draw={file,font,pixels,0,0};
+    if(page)memset(page,0,sizeof(*page));
+    StoryTextDraw draw={file,font,pixels,0,0,page};
     int result=npe_rpg_runtime_story_page(file,world_story_text_draw,&draw,pixels);
     return result||draw.error?-1:0;
 }
 
-int npe_render_world_npc_page(const NpeFile *file,const NpeFont *font,NpeWorld *world,uint8_t *pixels,
-                              int entry,NpeTextPageLoad load,void *load_context){
+int npe_render_world_npc_page_layout(const NpeFile *file,const NpeFont *font,NpeWorld *world,uint8_t *pixels,
+                              int entry,NpeTextPageLoad load,void *load_context,NpeTextPage *page){
     if(!file||!font||!font->data16||!world||!pixels)return -1;
     if(!file->rpg_runtime&&npe_world_resources_open((NpeFile *)file,world))return -1;
     if(npe_rpg_runtime_owner(file)!=world)return -1;
-    StoryTextDraw draw={file,font,pixels,0,1};
+    if(page)memset(page,0,sizeof(*page));
+    StoryTextDraw draw={file,font,pixels,0,1,page};
     int result=npe_rpg_runtime_npc_page(file,world_story_text_draw,&draw,pixels,entry,load,load_context);
     return result||draw.error?-1:0;
 }
 
+int npe_render_world_story_page(const NpeFile *file,const NpeFont *font,NpeWorld *world,uint8_t *pixels){
+    return npe_render_world_story_page_layout(file,font,world,pixels,NULL);
+}
+int npe_render_world_npc_page(const NpeFile *file,const NpeFont *font,NpeWorld *world,uint8_t *pixels,
+                             int entry,NpeTextPageLoad load,void *context){
+    return npe_render_world_npc_page_layout(file,font,world,pixels,entry,load,context,NULL);
+}
 int npe_render_native_window_story_page(const NpeFont *font,
                                         const NpeStoryRecord *story,size_t start,
                                         size_t *next,uint8_t pixels[NPE_WIDTH*NPE_HEIGHT]){

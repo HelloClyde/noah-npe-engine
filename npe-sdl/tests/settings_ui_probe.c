@@ -110,6 +110,62 @@ int main(int argc,char **argv){
             for(int y=0;y<NPE_HEIGHT;++y)for(int x=0;x<NPE_WIDTH;++x)
                 assert(game_view_pixels[(y+56)*400+x+80]==dialogue[y*NPE_WIDTH+x]);
         }
+        /* Append diagnostic text only in memory; original NPE bytes stay intact. */
+        size_t source_size=file.size;
+        uint8_t raw[96];unsigned raw_size=0;
+        for(unsigned i=0;i<26;++i){raw[raw_size++]=0xd6;raw[raw_size++]=0xd0;}
+        memcpy(raw+raw_size,"ABC123",6);raw_size+=6;raw[raw_size++]='@';raw[raw_size++]=0;
+        uint8_t *extended=realloc(file.bytes,source_size+raw_size);assert(extended);
+        file.bytes=extended;file.size=source_size+raw_size;memcpy(extended+source_size,raw,raw_size);
+        assert(!npe_world_resources_open(&file,world));
+        world->game_mode=2;world->text_file_position=(uint32_t)source_size;
+        world->text_offset=0;world->text_more=1;
+        memcpy(dialogue,native,sizeof(dialogue));
+        assert(!npe_render_world_npc_page_layout(&file,&font,world,dialogue,0,NULL,NULL,&game_view_text));
+        assert(game_view_text.valid&&game_view_text.count==32&&world->text_more==0);
+        assert(npe_text_page_lines(&game_view_text,240)==2);
+        assert(npe_text_page_lines(&game_view_text,392)==2);
+        assert(npe_text_page_lines(&game_view_text,952)==1);
+        unsigned offset_after=world->text_offset;
+        draw_pixels(renderer,texture,dialogue);
+        unsigned text_top=232-35-4;
+        uint8_t glyph_frame[NPE_WIDTH*NPE_HEIGHT]={0};
+        const uint8_t chinese[]={0xd6,0xd0};
+        assert(!npe_draw_gbk_text16_color(&font,chinese,2,0,0,15,glyph_frame));
+        /* The 16th character crossed the old 240px boundary: now stays on row1.
+           The 25th moves intact to row2 at a 392px usable width. */
+        for(unsigned y=0;y<16;++y)for(unsigned x=0;x<16;++x){
+            assert(game_view_pixels[(text_top+y)*400+244+x]==glyph_frame[y*NPE_WIDTH+x]);
+            assert(game_view_pixels[(text_top+16+y)*400+4+x]==glyph_frame[y*NPE_WIDTH+x]);
+        }
+        assert(world->text_offset==offset_after);
+        assert(!SDL_RenderReadPixels(renderer,NULL,SDL_PIXELFORMAT_ARGB8888,overlay_image->pixels,overlay_image->pitch));
+        snprintf(path,sizeof(path),"%sexpanded-reflow.bmp",test_folder);assert(!SDL_SaveBMP(overlay_image,path));
+        /* The same capture must not change native pixels or continuation state. */
+        uint8_t expected[NPE_WIDTH*NPE_HEIGHT];memcpy(expected,native,sizeof(expected));
+        world->text_offset=0;world->text_more=1;
+        assert(!npe_render_world_npc_page(&file,&font,world,expected,0,NULL,NULL));
+        assert(!memcmp(expected,dialogue,sizeof(expected))&&world->text_offset==offset_after&&world->text_more==0);
+        settings.cols=60;draw_pixels(renderer,texture,dialogue);
+        assert(game_view_width==960&&world->text_offset==offset_after);
+        settings.cols=15;draw_pixels(renderer,texture,dialogue);
+        assert(game_view_width==240&&world->text_offset==offset_after);
+        const uint8_t controlled[]={0xd6,0xd0,'A','\r','\n',0xd6,0xd0,6,'A',7,'B',7,'@',0};
+        memcpy(file.bytes+source_size,controlled,sizeof(controlled));
+        world->text_offset=0;world->text_more=1;
+        memcpy(dialogue,native,sizeof(dialogue));
+        assert(!npe_render_world_npc_page_layout(&file,&font,world,dialogue,0,NULL,NULL,&game_view_text));
+        assert(game_view_text.count==6&&game_view_text.glyphs[2].width==0&&npe_text_page_lines(&game_view_text,952)==2);
+        uint8_t flowed[NPE_WIDTH*NPE_HEIGHT]={0};npe_text_page_draw(&game_view_text,flowed,240,120,0,84,240);
+        assert(!memcmp(flowed+84*240,dialogue+84*240,32*240));
+        memcpy(file.bytes+source_size,raw,raw_size);
+        world->text_offset=0;world->text_more=1;world->text_style=0;
+        const uint16_t text_rect[]={0,84,240,118};memcpy(world->text_rect,text_rect,sizeof(text_rect));
+        assert(!npe_render_world_story_page_layout(&file,&font,world,dialogue,&game_view_text));
+        assert(game_view_text.valid&&game_view_text.count==32&&npe_text_page_lines(&game_view_text,952)==1);
+        settings.cols=25;
+        puts("Text reflow: GBK glyphs cross old 240px boundary, wrap intact, resize without advancing page; explicit CRLF and special glyphs preserved; native page/state unchanged");
+        game_view_text.valid=0;
         SDL_FreeSurface(overlay_image);free(map_before);npe_font_free(&font);
         settings.rows=7;settings.cols=15;world->game_mode=1;draw_pixels(renderer,texture,native);
         world->game_mode=6;game_view_menu_layer(&file,native,3,1,1);

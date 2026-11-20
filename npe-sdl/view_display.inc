@@ -1,3 +1,4 @@
+static NpeTextPage game_view_text;
 static const NpeFile *game_view_file;
 static const NpeWorld *game_view_world;
 static const int *game_view_playing;
@@ -93,7 +94,7 @@ static int game_view_present(SDL_Renderer *renderer,const uint8_t *native){
         game_view_world->property_page!=10 && game_view_menu_valid;
     if(!overlay){
         game_view_blit(native,0,4,NPE_WIDTH,112,dx,dy+4);
-        game_view_menu_valid=0;
+        game_view_menu_valid=0;game_view_text.valid=0;
     }else if(dialogue){
         /* Preserve the native page and glyphs, but anchor its two-line
            window to the bottom of the whole viewport and extend its fill. */
@@ -103,10 +104,18 @@ static int game_view_present(SDL_Renderer *renderer,const uint8_t *native){
            game_view_world->text_rect[3]>=game_view_world->text_rect[1]){
             top=game_view_world->text_rect[1];bottom=game_view_world->text_rect[3];
         }
+        unsigned inset=width>=NPE_WIDTH+8?4:0;
+        unsigned available=width-inset*2;
         unsigned h=bottom-top+1;
+        if(game_view_text.valid){
+            unsigned needed=npe_text_page_lines(&game_view_text,available)*16+3;
+            if(needed>h)h=needed;
+            if(h>height-4)h=height-4;
+        }
         unsigned y=height>=h+4?height-h-4:0;
         memset(game_view_pixels+(size_t)y*width,0,(size_t)width*h);
-        game_view_blit(native,0,(int)top,NPE_WIDTH,(int)h,width>=NPE_WIDTH+8?4:0,(int)y);
+        if(game_view_text.valid)npe_text_page_draw(&game_view_text,game_view_pixels,width,y+h,inset,y,available);
+        else game_view_blit(native,0,(int)top,NPE_WIDTH,(int)(bottom-top+1),inset,(int)y);
     }else if(menu){
         uint8_t mask[sizeof(game_view_menu_mask)];memcpy(mask,game_view_menu_mask,sizeof(mask));
         for(unsigned y=0;y<NPE_HEIGHT;++y){

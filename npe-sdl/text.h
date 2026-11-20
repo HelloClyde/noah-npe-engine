@@ -14,6 +14,15 @@ typedef struct {
     uint8_t *data;
     uint8_t *data16;
 } NpeFont;
+/* Host layout retains original page boundaries and native glyph bitmaps. */
+#define NPE_TEXT_PAGE_GLYPHS 256
+typedef struct { uint8_t bits[32],width; } NpeTextGlyph;
+typedef struct { NpeTextGlyph glyphs[NPE_TEXT_PAGE_GLYPHS];unsigned count;int valid; } NpeTextPage;
+unsigned npe_text_page_lines(const NpeTextPage *,unsigned width);
+void npe_text_page_draw(const NpeTextPage *,uint8_t *,unsigned,unsigned,unsigned,unsigned,unsigned);
+int npe_render_world_story_page_layout(const NpeFile *,const NpeFont *,NpeWorld *,uint8_t *,NpeTextPage *);
+int npe_render_world_npc_page_layout(const NpeFile *,const NpeFont *,NpeWorld *,uint8_t *,
+                                    int,NpeTextPageLoad,void *,NpeTextPage *);
 /* Draw one page through the original guest text-buffer service. */
 int npe_render_world_story_page(const NpeFile *,const NpeFont *,NpeWorld *,uint8_t *);
 int npe_render_world_npc_page(const NpeFile *,const NpeFont *,NpeWorld *,uint8_t *,
