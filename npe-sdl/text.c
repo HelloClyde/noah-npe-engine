@@ -2188,6 +2188,7 @@ int npe_render_world_npc_page_layout(const NpeFile *file,const NpeFont *font,Npe
     if(npe_rpg_runtime_owner(file)!=world)return -1;
     NpeTextPage captured={0};
     StoryTextDraw draw={file,font,pixels,0,1,page?&captured:NULL};
+    if(page&&entry)page->valid=0;
     int result=npe_rpg_runtime_npc_page(file,world_story_text_draw,&draw,pixels,entry,load,load_context);
     if(page&&captured.valid&&!result&&!draw.error)*page=captured;
     return result||draw.error?-1:0;

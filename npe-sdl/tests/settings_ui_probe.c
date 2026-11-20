@@ -167,6 +167,9 @@ int main(int argc,char **argv){
         file.bytes[source_size]='@';world->text_offset=0;world->text_more=1;
         assert(!npe_render_world_npc_page_layout(&file,&font,world,dialogue,0,NULL,NULL,&game_view_text));
         assert(!memcmp(&retained,&game_view_text,sizeof(retained)));
+        file.bytes[source_size]='?';file.bytes[source_size+1]='@';
+        assert(!npe_render_world_npc_page_layout(&file,&font,world,dialogue,1,NULL,NULL,&game_view_text));
+        assert(!game_view_text.valid);
         settings.cols=25;
         puts("Text reflow: GBK glyphs cross old 240px boundary, wrap intact, resize without advancing page; explicit CRLF and special glyphs preserved; native page/state unchanged");
         game_view_text.valid=0;
