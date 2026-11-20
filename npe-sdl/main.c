@@ -14,6 +14,7 @@
 #include "controller_input.inc"
 #include "input_gate.inc"
 #include "mobile_input.inc"
+#include "window_scale.inc"
 #include "view_display.inc"
 #ifdef __APPLE__
 char *npe_macos_choose_game(void);
@@ -59,6 +60,9 @@ static void game_keyboard_controls(void){
     SDL_StopTextInput();
 }
 static int game_host_event(SDL_Event *event){
+    if(event->type==SDL_USEREVENT && event->user.code==0x4e50455a){
+        game_window_scale((unsigned)(uintptr_t)event->user.data1);return 0;
+    }
     if(event->type==SDL_WINDOWEVENT && event->window.event==SDL_WINDOWEVENT_FOCUS_GAINED)
         game_keyboard_controls();
     if(event->type==SDL_USEREVENT && event->user.code==0x4e504553){
@@ -1446,8 +1450,9 @@ static void draw_pixels(SDL_Renderer *renderer, SDL_Texture *texture,
     }
     if(pixels!=last_pixel_frame)memcpy(last_pixel_frame,pixels,sizeof(last_pixel_frame));
     last_pixel_renderer=renderer;
-    if(game_view_present(renderer,pixels))return;
+    if(game_view_present(renderer,pixels)){game_scale_texture=game_view_texture;return;}
     SDL_RenderSetLogicalSize(renderer,NPE_WIDTH,NPE_HEIGHT);
+    game_scale_texture=texture;
     SDL_UpdateTexture(texture, NULL, rgba, NPE_WIDTH * (int)sizeof(uint32_t));
     SDL_RenderClear(renderer);
     SDL_RenderCopy(renderer, texture, NULL, NULL);
@@ -3584,6 +3589,7 @@ static int run(int argc, char **argv) {
     window = SDL_CreateWindow("诺亚舟-NPE-引擎", SDL_WINDOWPOS_CENTERED,
                               SDL_WINDOWPOS_CENTERED, 960, 480, SDL_WINDOW_RESIZABLE);
     if (!window) goto sdl_error;
+    game_scale_window=window;
     game_keyboard_controls();
     desktop_settings_callback=request_settings_page;
 #ifdef __APPLE__
@@ -4393,7 +4399,7 @@ parsed_done:
     game_view_close();game_view_file=NULL;game_view_world=NULL;game_view_playing=NULL;
     if (texture) SDL_DestroyTexture(texture);
     if (renderer) SDL_DestroyRenderer(renderer);
-    desktop_menu_detach();
+    desktop_menu_detach();game_scale_window=NULL;game_scale_texture=NULL;
     if (window) SDL_DestroyWindow(window);
     npe_free(&file);
 done:

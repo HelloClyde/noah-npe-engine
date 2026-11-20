@@ -54,6 +54,7 @@ static void game_view_popup_resource(const uint8_t *native,unsigned image,int x,
     game_view_blit(native,x,y,w,h,dx+x,dy+y);
 }
 static void game_view_close(void){
+    if(game_scale_texture==game_view_texture)game_scale_texture=NULL;
     if(game_view_texture)SDL_DestroyTexture(game_view_texture);
     free(game_view_pixels);free(game_view_background);free(game_view_rgba);game_view_texture=NULL;
     game_view_pixels=NULL;game_view_rgba=NULL;game_view_renderer=NULL;

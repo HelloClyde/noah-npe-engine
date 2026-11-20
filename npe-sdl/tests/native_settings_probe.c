@@ -65,7 +65,33 @@ int main(int argc,char **argv){
     SDL_SetMainReady();assert(!SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMECONTROLLER));
     SDL_Window *game=SDL_CreateWindow("native settings lifetime",0,0,320,160,SDL_WINDOW_HIDDEN);assert(game);
     Uint32 game_id=SDL_GetWindowID(game);
+    game_scale_window=game;
+    SDL_Renderer *scale_renderer=SDL_CreateRenderer(game,-1,SDL_RENDERER_SOFTWARE);assert(scale_renderer);
+    SDL_RenderSetLogicalSize(scale_renderer,240,120);
+    SDL_Texture *sample=SDL_CreateTexture(scale_renderer,SDL_PIXELFORMAT_ARGB8888,SDL_TEXTUREACCESS_STREAMING,1,1);assert(sample);
+    Uint32 color=0xff123456;assert(!SDL_UpdateTexture(sample,NULL,&color,4));game_scale_texture=sample;
     assert(!desktop_menu_attach(game));
+    assert(desktop_scale_menu&&GetMenuItemCount(desktop_scale_menu)==12);
+    const unsigned scales[]={1,2,4,10};
+    for(unsigned n=0;n<4;++n){unsigned scale=scales[n];
+        SendMessageW(desktop_window,WM_COMMAND,DESKTOP_SCALE_BASE+scale,0);
+        SDL_Event input;while(game_PollEvent(&input)){}
+        int width,height;SDL_GetWindowSize(game,&width,&height);
+        assert(width==240*(int)scale&&height==120*(int)scale);
+        SDL_Rect middle={width/2,height/2,1,1};Uint32 pixel=0;
+        assert(!SDL_RenderReadPixels(scale_renderer,&middle,SDL_PIXELFORMAT_ARGB8888,&pixel,4)&&pixel==color);
+        SendMessageW(desktop_window,WM_INITMENUPOPUP,(WPARAM)desktop_scale_menu,0);
+        assert(GetMenuState(desktop_scale_menu,DESKTOP_SCALE_BASE+scale,MF_BYCOMMAND)&MF_CHECKED);
+    }
+    SDL_SetWindowSize(game,777,333);
+    SendMessageW(desktop_window,WM_INITMENUPOPUP,(WPARAM)desktop_scale_menu,0);
+    assert(GetMenuState(desktop_scale_menu,DESKTOP_SCALE_CUSTOM,MF_BYCOMMAND)&MF_CHECKED);
+    SDL_RenderSetLogicalSize(scale_renderer,400,232);
+    SendMessageW(desktop_window,WM_COMMAND,DESKTOP_SCALE_BASE+3,0);
+    SDL_Event zoom_input;while(game_PollEvent(&zoom_input)){}
+    RECT client;GetClientRect(desktop_window,&client);
+    assert(client.right==1200&&client.bottom==696&&game_window_scale_current()==3);
+    puts("Window-size submenu: 1x/2x/4x/10x commands, checkmarks, custom drag size and expanded 400x232 canvas at 3x passed");
     assert(SendMessageW(desktop_window,WM_GETICON,ICON_BIG,0));
     assert(SendMessageW(desktop_window,WM_GETICON,ICON_SMALL,0));
     /* Drive the real Win32 -> SDL -> remapping path without desktop input. */
@@ -106,7 +132,7 @@ int main(int argc,char **argv){
     scenario=2;assert(settings_windows_dialog(&edited,0));assert(!edited.rows&&edited.keys[0]==SDLK_UP);
     assert(SDL_GetWindowFromID(game_id)==game);
     SDL_Event event;while(SDL_PollEvent(&event))assert(event.type!=SDL_QUIT);
-    desktop_menu_detach();SDL_DestroyWindow(game);SDL_Quit();
+    desktop_menu_detach();game_scale_window=NULL;game_scale_texture=NULL;SDL_DestroyTexture(sample);SDL_DestroyRenderer(scale_renderer);SDL_DestroyWindow(game);SDL_Quit();
     scenario=1;picker_calls=0;
     char *arguments[]={"npe-sdl","--settings",NULL};assert(!npe_app_main(2,arguments));
     assert(settings_last_saved&&picker_calls==1);

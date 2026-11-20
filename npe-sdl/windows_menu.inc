@@ -3,6 +3,7 @@ static void (*desktop_settings_callback)(unsigned);
 #ifdef _WIN32
 #include <SDL_syswm.h>
 #include <imm.h>
+#include <wchar.h>
 static HWND desktop_window;
 static WNDPROC desktop_original_proc;
 static HIMC desktop_ime_context;
@@ -12,7 +13,7 @@ static void desktop_keyboard_controls(void){
     HIMC prior=ImmAssociateContext(desktop_window,NULL);
     if(!desktop_ime_detached){desktop_ime_context=prior;desktop_ime_detached=1;}
 }
-static HMENU desktop_menu;
+static HMENU desktop_menu,desktop_scale_menu;
 static char *desktop_next_game;
 static int desktop_drag_hit;
 static POINT desktop_drag_origin;
@@ -81,7 +82,7 @@ static int desktop_drag_event(HWND hwnd,UINT message,WPARAM wparam){
     }
     return 0;
 }
-enum { DESKTOP_OPEN=41001,DESKTOP_EXIT,DESKTOP_ABOUT,DESKTOP_SETTINGS,DESKTOP_VIEW };
+enum { DESKTOP_OPEN=41001,DESKTOP_EXIT,DESKTOP_ABOUT,DESKTOP_SETTINGS,DESKTOP_VIEW,DESKTOP_SCALE_BASE=41100,DESKTOP_SCALE_CUSTOM=41120 };
 static char *desktop_choose_game(HWND owner){
     WCHAR path[32768]={0};OPENFILENAMEW dialog;
     memset(&dialog,0,sizeof(dialog));dialog.lStructSize=sizeof(dialog);dialog.hwndOwner=owner;
@@ -103,7 +104,14 @@ static char *desktop_choose_game(HWND owner){
 static void desktop_quit(void){SDL_Event event;SDL_zero(event);event.type=SDL_QUIT;SDL_PushEvent(&event);}
 static LRESULT CALLBACK desktop_window_proc(HWND hwnd,UINT message,WPARAM wparam,LPARAM lparam){
     if(desktop_drag_event(hwnd,message,wparam))return 0;
+    if(message==WM_INITMENUPOPUP && (HMENU)wparam==desktop_scale_menu){
+        unsigned selected=game_window_scale_current();
+        for(unsigned i=1;i<=10;++i)CheckMenuItem(desktop_scale_menu,DESKTOP_SCALE_BASE+i,MF_BYCOMMAND|(selected==i?MF_CHECKED:MF_UNCHECKED));
+        CheckMenuItem(desktop_scale_menu,DESKTOP_SCALE_CUSTOM,MF_BYCOMMAND|(!selected?MF_CHECKED:MF_UNCHECKED));
+    }
     if(message==WM_COMMAND && HIWORD(wparam)==0){
+        unsigned command=LOWORD(wparam);
+        if(command>DESKTOP_SCALE_BASE&&command<=DESKTOP_SCALE_BASE+10){game_window_scale_request(command-DESKTOP_SCALE_BASE);return 0;}
         switch(LOWORD(wparam)){
         case DESKTOP_OPEN:{
             char *selected=desktop_choose_game(hwnd);
@@ -139,12 +147,17 @@ static int desktop_menu_attach(SDL_Window *window){
     AppendMenuW(file,MF_SEPARATOR,0,NULL);AppendMenuW(file,MF_STRING,DESKTOP_EXIT,L"\u9000\u51fa(&X)");
     AppendMenuW(options,MF_STRING,DESKTOP_SETTINGS,L"\u6309\u952e\u6620\u5c04...\tF10");
     AppendMenuW(options,MF_STRING,DESKTOP_VIEW,L"\u5730\u56fe\u89c6\u91ce...");
+    HMENU zoom=CreatePopupMenu();
+    if(!zoom){DestroyMenu(bar);DestroyMenu(file);DestroyMenu(about);DestroyMenu(options);return -1;}
+    for(unsigned i=1;i<=10;++i){wchar_t text[16];swprintf(text,16,L"%u×",i);AppendMenuW(zoom,MF_STRING,DESKTOP_SCALE_BASE+i,text);}
+    AppendMenuW(zoom,MF_SEPARATOR,0,NULL);AppendMenuW(zoom,MF_STRING|MF_GRAYED,DESKTOP_SCALE_CUSTOM,L"自定义大小");
+    AppendMenuW(options,MF_POPUP,(UINT_PTR)zoom,L"窗口大小");
     AppendMenuW(about,MF_STRING,DESKTOP_ABOUT,L"\u5173\u4e8e\u8bfa\u4e9a\u821f-NPE-\u5f15\u64ce...");
     AppendMenuW(bar,MF_POPUP,(UINT_PTR)file,L"\u6587\u4ef6(&F)");
     AppendMenuW(bar,MF_POPUP,(UINT_PTR)options,L"\u8bbe\u7f6e(&S)");
     AppendMenuW(bar,MF_POPUP,(UINT_PTR)about,L"\u5173\u4e8e(&A)");
     if(!SetMenu(hwnd,bar)){DestroyMenu(bar);return -1;}
-    desktop_window=hwnd;desktop_menu=bar;
+    desktop_window=hwnd;desktop_menu=bar;desktop_scale_menu=zoom;
     desktop_original_proc=(WNDPROC)SetWindowLongPtrW(hwnd,GWLP_WNDPROC,(LONG_PTR)desktop_window_proc);
     desktop_keyboard_controls();
     DrawMenuBar(hwnd);SDL_SetWindowSize(window,960,480);return 0;
@@ -158,7 +171,7 @@ static void desktop_menu_detach(void){
         SetMenu(desktop_window,NULL);
     }
     if(desktop_menu)DestroyMenu(desktop_menu);
-    desktop_window=NULL;desktop_original_proc=NULL;desktop_menu=NULL;
+    desktop_window=NULL;desktop_original_proc=NULL;desktop_menu=NULL;desktop_scale_menu=NULL;
 }
 #else
 static void desktop_keyboard_controls(void){}
