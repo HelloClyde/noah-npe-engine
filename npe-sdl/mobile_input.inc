@@ -9,7 +9,8 @@ static int game_mobile_event(SDL_Event *event) {
     if(action>=sizeof(keys)/sizeof(keys[0]))return 0;
     SDL_Keycode key=keys[action];
     unsigned mode=game_pad_mode?*game_pad_mode:0;
-    if(mode==8 && action>=4 && action<=7)key=SDLK_a+(SDL_Keycode)(action-4);
+    if(mode==8 && action==6)key=SDLK_F2; /* Show the keyboard for a typed question. */
+    else if(mode==8 && action==7)key=SDLK_BACKSPACE;
     else if(action==4 && (mode==2 || mode==5))key=SDLK_SPACE;
     Uint32 type=event->user.data2?SDL_KEYDOWN:SDL_KEYUP;
     SDL_zero(*event);event->type=type;

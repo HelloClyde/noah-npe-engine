@@ -73,11 +73,8 @@ static int game_pad_event(SDL_Event *event){
                 return 0;
             }
             if(game_pad_mode && *game_pad_mode==8){
-                SDL_Keycode answer=event->cbutton.button==SDL_CONTROLLER_BUTTON_A?SDLK_a:
-                    event->cbutton.button==SDL_CONTROLLER_BUTTON_B?SDLK_b:
-                    event->cbutton.button==SDL_CONTROLLER_BUTTON_X?SDLK_c:
-                    event->cbutton.button==SDL_CONTROLLER_BUTTON_Y?SDLK_d:SDLK_UNKNOWN;
-                if(answer!=SDLK_UNKNOWN)return game_pad_key(event,answer,0);
+                if(event->cbutton.button==SDL_CONTROLLER_BUTTON_X)return game_pad_key(event,SDLK_F2,0);
+                if(event->cbutton.button==SDL_CONTROLLER_BUTTON_Y)return game_pad_key(event,SDLK_BACKSPACE,0);
             }
             switch(event->cbutton.button){
             case SDL_CONTROLLER_BUTTON_A:return game_pad_key(event,

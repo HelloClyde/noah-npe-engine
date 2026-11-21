@@ -185,7 +185,7 @@ public class GameActivity extends SDLActivity {
                 if(which==0)showTouchSlider(false);
                 else if(which==1)showTouchSlider(true);
                 else if(which==2)new AlertDialog.Builder(this).setTitle("任天堂布局")
-                    .setMessage("左侧十字键：按住移动，滑动换向。\nA：确认／对话继续；B：返回／游戏菜单；X：发起对话；Y：卸装。\n选项左／右：购买框切换是／否。说明上页／下页：P／N。购买物品说明也可用十字键左右翻页。\n答题时 A／B／X／Y 分别对应答案 A／B／C／D。")
+                    .setMessage("左侧十字键：按住移动，滑动换向。\nA：确认／对话继续；B：返回／游戏菜单；X：发起对话；Y：卸装。\n选项左／右：购买框切换是／否。说明上页／下页：P／N。购买物品说明也可用十字键左右翻页。\n答题：十字键选答案，A 确认，B 结束答题。遇到输入题，X 打开键盘，Y 删除。")
                     .setPositiveButton("知道了",null).show();
                 else new AlertDialog.Builder(this).setTitle("返回游戏列表？")
                     .setMessage("请先用游戏菜单存档，未保存的进度不会自动保存。")

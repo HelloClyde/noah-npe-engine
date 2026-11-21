@@ -35,7 +35,7 @@ public class LauncherActivity extends Activity {
             startActivityForResult(intent, 1);
         });
         TextView help = new TextView(this);
-        help.setText("游戏文件需自行提供。导入后可离线游玩。\n用游戏菜单手动存档；卸载应用会删除已导入游戏和存档。\n屏幕 A 确认/翻页，B 返回/菜单，X 对话，Y 卸装；答题时 A/B/X/Y 对应 A/B/C/D。支持实体手柄。\n"); list.addView(help);
+        help.setText("游戏文件需自行提供。导入后可离线游玩。\n用游戏菜单手动存档；卸载应用会删除已导入游戏和存档。\n屏幕 A 确认/翻页，B 返回/菜单，X 对话，Y 卸装；答题时用十字键选答案，再按 A 确认。支持实体手柄。\n"); list.addView(help);
         File[] games = new File(getFilesDir(), "games").listFiles((dir, name) -> name.endsWith(".npe"));
         if (games == null) return;
         Arrays.sort(games, (a,b) -> Long.compare(b.lastModified(), a.lastModified()));

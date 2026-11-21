@@ -69,7 +69,7 @@ int main(void){
     mode=5;SDL_zero(e);e.type=SDL_CONTROLLERBUTTONDOWN;e.cbutton.which=game_pad_id;e.cbutton.button=SDL_CONTROLLER_BUTTON_X;
     assert(game_pad_event(&e)&&e.key.keysym.sym==SDLK_SPACE);
     mode=8;SDL_zero(e);e.type=SDL_CONTROLLERBUTTONDOWN;e.cbutton.which=game_pad_id;e.cbutton.button=SDL_CONTROLLER_BUTTON_X;
-    assert(game_pad_event(&e)&&e.key.keysym.sym==SDLK_a);
+    assert(game_pad_event(&e)&&e.key.keysym.sym==SDLK_RETURN);
     mode=4;SDL_zero(e);e.type=SDL_CONTROLLERBUTTONDOWN;e.cbutton.which=game_pad_id;e.cbutton.button=SDL_CONTROLLER_BUTTON_BACK;
     assert(game_pad_event(&e)&&e.key.keysym.sym==SDLK_j);
     SDL_zero(e);e.type=SDL_CONTROLLERBUTTONDOWN;e.cbutton.which=game_pad_id;e.cbutton.button=SDL_CONTROLLER_BUTTON_RIGHTSTICK;

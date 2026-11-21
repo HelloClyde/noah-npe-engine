@@ -24,7 +24,9 @@ int main(void){
     check(10,1,SDLK_j);check(10,0,SDLK_j);check(11,1,SDLK_l);check(11,0,SDLK_l);
     mode=2;check(4,1,SDLK_SPACE);mode=5;check(4,1,SDLK_SPACE);
     mode=3;check(4,1,SDLK_RETURN);
-    mode=8;for(unsigned i=4;i<=7;++i)check(i,1,SDLK_a+i-4);
+    mode=4;check(10,1,SDLK_j);check(11,1,SDLK_l);check(4,1,SDLK_RETURN);
+    mode=8;check(3,1,SDLK_LEFT);check(1,1,SDLK_RIGHT);check(4,1,SDLK_RETURN);
+    check(5,1,SDLK_F4);check(6,1,SDLK_F2);check(7,1,SDLK_BACKSPACE);
     SDL_Event event;SDL_zero(event);event.type=SDL_QUIT;
     assert(game_mobile_event(&event)&&event.type==SDL_QUIT);
     event.type=SDL_USEREVENT;event.user.code=NPE_MOBILE_EVENT_CODE;

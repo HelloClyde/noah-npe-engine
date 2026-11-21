@@ -1,4 +1,5 @@
 #define NPE_SETTINGS_SDL_TEST
+#define NPE_MOBILE_INPUT_TEST
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
 #include <assert.h>
@@ -42,6 +43,27 @@ static int shop_binding_keys(void *unused){
         event.type=SDL_KEYDOWN;event.key.keysym.sym=keys[i];SDL_PushEvent(&event);
         event.type=SDL_KEYUP;SDL_PushEvent(&event);}
     return 0;
+}
+static void push_touch(unsigned action) {
+    SDL_Event event={0};
+    event.type=SDL_USEREVENT;event.user.code=NPE_MOBILE_EVENT_CODE;
+    event.user.data1=(void *)(uintptr_t)action;event.user.data2=(void *)(uintptr_t)1;
+    assert(SDL_PushEvent(&event)==1);
+    event.user.data2=NULL;
+    assert(SDL_PushEvent(&event)==1);
+}
+static int shop_touch_keys(void *unused) {
+    (void)unused;
+    SDL_Delay(70);push_touch(10);
+    SDL_Delay(70);push_touch(4);
+    return 0;
+}
+static int quiz_touch_key(const NpeFile *file,NpeWorld *world,unsigned action) {
+    push_touch(action);
+    SDL_Event event;
+    while(game_WaitEventTimeout(&event,100))
+        if(event.type==SDL_KEYDOWN)return npe_world_quiz_key(file,world,quiz_sdl_key(&event.key));
+    return -1;
 }
 int main(int argc,char **argv){
     assert(argc==2||argc==3);snprintf(test_folder,sizeof(test_folder),"%s/",argv[1]);
@@ -176,6 +198,27 @@ int main(int argc,char **argv){
         SDL_Thread *shop_keys=SDL_CreateThread(shop_binding_keys,"shop remapped selection",NULL);assert(shop_keys);
         assert(!show_shop_quantity(renderer,texture,&file,&font,world));SDL_WaitThread(shop_keys,NULL);
         assert(world->shop_choice==1&&world->money==money&&world->condition_words[1]==owned);
+        world->money=30000;
+        shop_keys=SDL_CreateThread(shop_touch_keys,"shop touch selection",NULL);assert(shop_keys);
+        assert(!show_shop_quantity(renderer,texture,&file,&font,world));SDL_WaitThread(shop_keys,NULL);
+        assert(world->shop_choice==1 && world->condition_words[1]==owned+1 && world->money==30000-item.price);
+        puts("Android shop events: option left + A complete a purchase and debit money");
+        world->game_mode=8;world->quiz_ready=1;world->quiz_category=0;
+        for(unsigned type=0;type<2;++type){
+            NpeQuizQuestion question;
+            unsigned index=0;
+            while(!npe_quiz_question(&file,index,&question) && !!question.input_type!=type)++index;
+            assert(!npe_quiz_question(&file,index,&question));
+            world->quiz_question_index=(uint16_t)index;world->event_context_id=0;
+            if(!type)assert(quiz_touch_key(&file,world,1)==1 && world->event_context_id==1);
+            else{
+                assert(npe_world_quiz_key(&file,world,'1')==1);
+                assert(quiz_touch_key(&file,world,7)==1 && !world->quiz_input_length);
+                assert(npe_world_quiz_key(&file,world,'2')==1);
+            }
+            assert(quiz_touch_key(&file,world,4)==2);
+        }
+        puts("Android quiz events: direction/confirm submit choice, delete/confirm submit typed answer");
         game_pad_mode=NULL;
         puts("Real shop quantity dialog: remapped Q switches No to Yes; cancel leaves money and inventory unchanged");
         /* Append diagnostic text only in memory; original NPE bytes stay intact. */

@@ -1349,7 +1349,7 @@ static int quiz_reward_notice(SDL_Renderer *renderer,SDL_Texture *texture,
     memcpy(message,reward,sizeof(reward));memcpy(message+sizeof(reward),number,(size_t)digits);
     return quiz_notice(renderer,texture,font,message,sizeof(reward)+(size_t)digits,parent);
 }
-static void show_quiz_question(SDL_Window *window, SDL_Renderer *renderer,
+static void run_quiz_question(SDL_Window *window, SDL_Renderer *renderer,
                                SDL_Texture *texture, const NpeFile *file,
                                const NpeFont *font, NpeWorld *world) {
     static const uint8_t correct[]={0xb9,0xa7,0xcf,0xb2,0xc4,0xfa,0xa3,0xac,0xbb,0xd8,0xb4,0xf0,0xd5,0xfd,0xc8,0xb7,0xa3,0xa1};
@@ -1382,6 +1382,12 @@ static void show_quiz_question(SDL_Window *window, SDL_Renderer *renderer,
             if(input.type==SDL_QUIT){SDL_PushEvent(&input);return;}
             if(input.type!=SDL_KEYDOWN)continue;
             if(input.key.keysym.sym==SDLK_ESCAPE){SDL_Event quit={0};quit.type=SDL_QUIT;SDL_PushEvent(&quit);return;}
+#ifdef __ANDROID__
+            if(input.key.keysym.sym==SDLK_F2 && question.input_type && !input.key.repeat){
+                SDL_StartTextInput();
+                continue;
+            }
+#endif
             action=npe_world_quiz_key(file,world,quiz_sdl_key(&input.key));
             if(action<0)return;
             if(action==1) {
@@ -1389,6 +1395,9 @@ static void show_quiz_question(SDL_Window *window, SDL_Renderer *renderer,
                 draw_pixels(renderer,texture,pixels);
             }
         }
+#ifdef __ANDROID__
+        if(SDL_IsTextInputActive())SDL_StopTextInput();
+#endif
         if(action==3) {
             NpeWorld after=*world;uint16_t award;
             if(npe_world_finish_quiz(&after,&award))return;
@@ -1429,6 +1438,15 @@ static void show_quiz_question(SDL_Window *window, SDL_Renderer *renderer,
             retain_world_frame(file,world,renderer,pixels,0);
         }
     }
+}
+
+static void show_quiz_question(SDL_Window *window, SDL_Renderer *renderer,
+                               SDL_Texture *texture, const NpeFile *file,
+                               const NpeFont *font, NpeWorld *world) {
+    run_quiz_question(window,renderer,texture,file,font,world);
+#ifdef __ANDROID__
+    if(SDL_IsTextInputActive())SDL_StopTextInput();
+#endif
 }
 
 static void draw_pixels(SDL_Renderer *renderer, SDL_Texture *texture,

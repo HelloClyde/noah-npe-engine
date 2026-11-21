@@ -23,7 +23,7 @@ int main(void){
     mode=5;e=button(SDL_CONTROLLERBUTTONDOWN,SDL_CONTROLLER_BUTTON_A);
     assert(game_pad_event(&e)&&e.key.keysym.sym==SDLK_SPACE);
     mode=8;e=button(SDL_CONTROLLERBUTTONDOWN,SDL_CONTROLLER_BUTTON_B);
-    assert(game_pad_event(&e)&&e.key.keysym.sym==SDLK_b);
+    assert(game_pad_event(&e)&&e.key.keysym.sym==SDLK_F4);
     mode=1;e=button(SDL_CONTROLLERBUTTONDOWN,SDL_CONTROLLER_BUTTON_DPAD_RIGHT);
     assert(game_pad_event(&e)&&e.key.keysym.sym==SDLK_RIGHT);
     game_pad_next=SDL_GetTicks();assert(game_pad_repeat(&e)&&e.key.repeat);
