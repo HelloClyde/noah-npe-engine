@@ -23,6 +23,11 @@ public final class TouchControlsTest {
             require(size[0]-12-layout.utilityUnit*2>=(size[0]+72)/2);
             require(layout.utilityUnit-4>=48);
         }
+        TouchControls.Layout high = new TouchControls.Layout(390,720,100,20);
+        TouchControls.Layout low = new TouchControls.Layout(390,720,100,60);
+        TouchControls.Layout edge = new TouchControls.Layout(390,720,150,100);
+        require(high.utilityTop==144 && low.utilityTop==432 && high.size==low.size);
+        require(edge.top+edge.size<=720 && edge.utilityTop>=8);
         TouchControls.Layout small = new TouchControls.Layout(800,360,80);
         TouchControls.Layout normal = new TouchControls.Layout(800,360,100);
         TouchControls.Layout large = new TouchControls.Layout(800,360,150);

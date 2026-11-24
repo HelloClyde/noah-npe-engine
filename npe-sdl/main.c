@@ -15,6 +15,30 @@
 #include "input_gate.inc"
 #include "mobile_input.inc"
 #include "window_scale.inc"
+#if defined(__ANDROID__) || defined(NPE_MOBILE_INPUT_TEST)
+static unsigned game_mobile_top=8;
+#endif
+static void game_present_texture(SDL_Renderer *renderer,SDL_Texture *texture,int width,int height){
+    SDL_RenderSetLogicalSize(renderer,width,height);
+#if defined(__ANDROID__) || defined(NPE_MOBILE_INPUT_TEST)
+    int output_width,output_height;
+    if(!SDL_GetRendererOutputSize(renderer,&output_width,&output_height) && output_height>output_width){
+        SDL_Rect viewport;
+        float sx,sy;
+        SDL_RenderGetScale(renderer,&sx,&sy);
+        SDL_RenderSetScale(renderer,1,1);
+        SDL_RenderGetViewport(renderer,&viewport);
+        int top=(int)((int64_t)output_height*game_mobile_top/100);
+        int max_top=output_height-viewport.h;
+        viewport.y=SDL_clamp(top,0,max_top>0?max_top:0);
+        SDL_RenderSetViewport(renderer,&viewport);
+        SDL_RenderSetScale(renderer,sx,sy);
+    }
+#endif
+    SDL_RenderClear(renderer);
+    SDL_RenderCopy(renderer,texture,NULL,NULL);
+    SDL_RenderPresent(renderer);
+}
 #include "view_display.inc"
 #ifdef __APPLE__
 char *npe_macos_choose_game(void);
@@ -61,6 +85,7 @@ static void game_keyboard_controls(void){
 }
 #if defined(__ANDROID__) || defined(NPE_MOBILE_INPUT_TEST)
 static void game_mobile_apply_view(unsigned rows,unsigned cols);
+static void game_mobile_redraw(void);
 #endif
 static int game_host_event(SDL_Event *event){
 #if defined(__ANDROID__) || defined(NPE_MOBILE_INPUT_TEST)
@@ -69,6 +94,16 @@ static int game_host_event(SDL_Event *event){
                                (unsigned)(uintptr_t)event->user.data2);
         return 0;
     }
+    if(event->type==SDL_USEREVENT && event->user.code==NPE_MOBILE_TOP_EVENT){
+        unsigned top=(unsigned)(uintptr_t)event->user.data1;
+        if(top<=100&&top!=game_mobile_top){game_mobile_top=top;game_mobile_redraw();}
+        return 0;
+    }
+#endif
+#ifdef __ANDROID__
+    if(event->type==SDL_WINDOWEVENT &&
+       (event->window.event==SDL_WINDOWEVENT_SIZE_CHANGED||event->window.event==SDL_WINDOWEVENT_EXPOSED))
+        game_mobile_redraw();
 #endif
     if(event->type==SDL_USEREVENT && event->user.code==0x4e50455a){
         game_window_scale((unsigned)(uintptr_t)event->user.data1);return 0;
@@ -1474,21 +1509,21 @@ static void present_pixels(SDL_Renderer *renderer,SDL_Texture *texture,const uin
         uint32_t blue = 161 - value * 119 / 15;
         rgba[i] = 0xff000000u | red << 16 | green << 8 | blue;
     }
-    SDL_RenderSetLogicalSize(renderer,NPE_WIDTH,NPE_HEIGHT);
     game_scale_texture=texture;
     SDL_UpdateTexture(texture, NULL, rgba, NPE_WIDTH * (int)sizeof(uint32_t));
-    SDL_RenderClear(renderer);
-    SDL_RenderCopy(renderer, texture, NULL, NULL);
-    SDL_RenderPresent(renderer);
+    game_present_texture(renderer,texture,NPE_WIDTH,NPE_HEIGHT);
 }
 #if defined(__ANDROID__) || defined(NPE_MOBILE_INPUT_TEST)
+static void game_mobile_redraw(void){
+    if(last_pixel_renderer&&last_native_texture)
+        present_pixels(last_pixel_renderer,last_native_texture,last_pixel_frame);
+}
 static void game_mobile_apply_view(unsigned rows,unsigned cols){
     if(!settings_view_valid(rows,cols)||(settings.rows==rows&&settings.cols==cols))return;
     settings.rows=rows;
     settings.cols=cols;
     game_view_map=0;
-    if(last_pixel_renderer&&last_native_texture)
-        present_pixels(last_pixel_renderer,last_native_texture,last_pixel_frame);
+    game_mobile_redraw();
 }
 #endif
 static void draw_pixels(SDL_Renderer *renderer, SDL_Texture *texture,
@@ -3532,7 +3567,9 @@ static int run(int argc, char **argv) {
     if(SDL_WasInit(SDL_INIT_VIDEO)){
         settings_load();
 #ifdef __ANDROID__
-        unsigned view=game_mobile_saved_view();
+        unsigned view=game_mobile_saved_setting("savedMapView",0);
+        unsigned top=game_mobile_saved_setting("savedGameTop",8);
+        game_mobile_top=top<=100?top:8;
         game_mobile_apply_view(view>>16,view&0xffffu);
 #endif
         if(!SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER))game_pad_open();

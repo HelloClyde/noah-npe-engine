@@ -2,6 +2,7 @@
 #if defined(__ANDROID__) || defined(NPE_MOBILE_INPUT_TEST)
 #define NPE_MOBILE_EVENT_CODE 0x4e50454b
 #define NPE_MOBILE_VIEW_EVENT 0x4e505657
+#define NPE_MOBILE_TOP_EVENT 0x4e505654
 static int game_mobile_event(SDL_Event *event) {
     static const SDL_Keycode keys[]={SDLK_UP,SDLK_RIGHT,SDLK_DOWN,SDLK_LEFT,
         SDLK_RETURN,SDLK_F4,SDLK_SPACE,SDLK_u,SDLK_p,SDLK_n,SDLK_j,SDLK_l};
@@ -30,14 +31,22 @@ JNIEXPORT jboolean JNICALL Java_com_helloclyde_npe_GameActivity_nativeMapView(
     event.user.data2=(void *)(uintptr_t)(unsigned)cols;
     return SDL_PushEvent(&event)==1?JNI_TRUE:JNI_FALSE;
 }
-static unsigned game_mobile_saved_view(void){
+JNIEXPORT jboolean JNICALL Java_com_helloclyde_npe_GameActivity_nativeGameTop(
+        JNIEnv *env,jclass cls,jint top) {
+    (void)env;(void)cls;
+    SDL_Event event;SDL_zero(event);event.type=SDL_USEREVENT;
+    event.user.code=NPE_MOBILE_TOP_EVENT;
+    event.user.data1=(void *)(uintptr_t)(unsigned)top;
+    return SDL_PushEvent(&event)==1?JNI_TRUE:JNI_FALSE;
+}
+static unsigned game_mobile_saved_setting(const char *name,unsigned fallback){
     JNIEnv *env=SDL_AndroidGetJNIEnv();
     jobject activity=SDL_AndroidGetActivity();
-    if(!env||!activity)return 0;
+    if(!env||!activity)return fallback;
     jclass cls=(*env)->GetObjectClass(env,activity);
-    jmethodID method=cls?(*env)->GetMethodID(env,cls,"savedMapView","()I"):NULL;
-    jint view=method?(*env)->CallIntMethod(env,activity,method):0;
-    if((*env)->ExceptionCheck(env)){(*env)->ExceptionClear(env);view=0;}
+    jmethodID method=cls?(*env)->GetMethodID(env,cls,name,"()I"):NULL;
+    jint view=method?(*env)->CallIntMethod(env,activity,method):(jint)fallback;
+    if((*env)->ExceptionCheck(env)){(*env)->ExceptionClear(env);view=(jint)fallback;}
     if(cls)(*env)->DeleteLocalRef(env,cls);
     (*env)->DeleteLocalRef(env,activity);
     return (unsigned)view;

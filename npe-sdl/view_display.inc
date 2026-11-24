@@ -163,7 +163,6 @@ static int game_view_present(SDL_Renderer *renderer,const uint8_t *native){
     }
     for(size_t i=0;i<(size_t)width*height;++i)game_view_rgba[i]=game_lcd_color(game_view_pixels[i]);
     SDL_UpdateTexture(game_view_texture,NULL,game_view_rgba,(int)width*4);
-    SDL_RenderSetLogicalSize(renderer,(int)width,(int)height);
-    SDL_RenderClear(renderer);SDL_RenderCopy(renderer,game_view_texture,NULL,NULL);
-    SDL_RenderPresent(renderer);return 1;
+    game_present_texture(renderer,game_view_texture,(int)width,(int)height);
+    return 1;
 }

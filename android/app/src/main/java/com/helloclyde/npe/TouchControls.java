@@ -11,6 +11,9 @@ final class TouchControls {
     static final class Layout {
         final int unit, size, left, right, top, utilityTop, utilityUnit, utilityHeight;
         Layout(int width, int height, int percent) {
+            this(width,height,percent,100);
+        }
+        Layout(int width, int height, int percent, int controlsTop) {
             percent = clampSize(percent);
             int preferredUnit = Math.round(52 * percent / 100f);
             int preferredUtilityHeight = Math.round(48 * percent / 100f);
@@ -19,9 +22,12 @@ final class TouchControls {
             size = unit * 3;
             left = 12;
             right = width - size - 12;
-            top = height - size - 12;
-            utilityHeight = Math.max(1, Math.min(preferredUtilityHeight, top - 12));
-            utilityTop = top - utilityHeight - 4;
+            int bottomAlignedTop = height - size - 12;
+            utilityHeight = Math.max(1, Math.min(preferredUtilityHeight, bottomAlignedTop - 12));
+            int maxTop = bottomAlignedTop - utilityHeight - 4;
+            int requestedTop = Math.round(height * controlsTop / 100f);
+            utilityTop = Math.max(8,Math.min(requestedTop,maxTop));
+            top = utilityTop + utilityHeight + 4;
             utilityUnit = Math.min(Math.round(78 * percent / 100f), Math.max(1, (width - 104) / 4));
         }
     }

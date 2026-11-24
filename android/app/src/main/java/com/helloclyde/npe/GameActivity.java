@@ -2,6 +2,7 @@ package com.helloclyde.npe;
 
 import android.app.AlertDialog;
 import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.content.res.ColorStateList;
 import android.graphics.Canvas;
@@ -33,9 +34,30 @@ public class GameActivity extends SDLActivity {
     private final ArrayList<Press> presses = new ArrayList<>();
     private RelativeLayout controls;
     private Pad pad;
-    private int lastWidth, lastHeight, lastSize, transparency = 35, buttonSize = 100;
+    private int lastWidth, lastHeight, lastSize, lastControlsTop;
+    private int transparency = 35, buttonSize = 100;
+    private int controlsTop = 62;
+    private static final int DEFAULT_GAME_TOP = 8, DEFAULT_CONTROLS_TOP = 62;
+    private static final int[] ORIENTATIONS = {
+        ActivityInfo.SCREEN_ORIENTATION_FULL_USER,
+        ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT,
+        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+    };
     private static native void nativeButton(int action, boolean down);
     private static native boolean nativeMapView(int rows, int cols);
+    private static native boolean nativeGameTop(int percent);
+
+    public int savedGameTop() {
+        return savedMapDimension(getPreferences(MODE_PRIVATE), "portrait_game_top", DEFAULT_GAME_TOP, 0, 100);
+    }
+
+    private int savedOrientation() {
+        return savedMapDimension(getPreferences(MODE_PRIVATE), "game_orientation", 0, 0, ORIENTATIONS.length-1);
+    }
+
+    @Override public void setOrientationBis(int width, int height, boolean resizable, String hint) {
+        setRequestedOrientation(ORIENTATIONS[savedOrientation()]);
+    }
 
     private static final int MIN_ROWS = 7, MAX_ROWS = 40, DEFAULT_ROWS = 14;
     private static final int MIN_COLS = 15, MAX_COLS = 60, DEFAULT_COLS = 25;
@@ -61,6 +83,8 @@ public class GameActivity extends SDLActivity {
         if (mLayout == null || mSurface == null) return;
         transparency = Math.max(0, Math.min(90, getPreferences(0).getInt("touch_transparency", 35)));
         buttonSize = TouchControls.clampSize(getPreferences(0).getInt("touch_size", 100));
+        controlsTop = savedMapDimension(getPreferences(MODE_PRIVATE), "portrait_controls_top", DEFAULT_CONTROLS_TOP, 0, 100);
+        setRequestedOrientation(ORIENTATIONS[savedOrientation()]);
         mLayout.setMotionEventSplittingEnabled(true);
         mLayout.setOnApplyWindowInsetsListener((view, insets) -> {
             int left, top, right, bottom;
@@ -100,13 +124,13 @@ public class GameActivity extends SDLActivity {
         if (mLayout == null || mSurface == null) return;
         int pixelsW = mLayout.getWidth()-mLayout.getPaddingLeft()-mLayout.getPaddingRight();
         int pixelsH = mLayout.getHeight()-mLayout.getPaddingTop()-mLayout.getPaddingBottom();
-        if (pixelsW <= 0 || pixelsH <= 0 || (lastWidth==pixelsW && lastHeight==pixelsH && lastSize==buttonSize)) return;
+        if (pixelsW <= 0 || pixelsH <= 0 || (lastWidth==pixelsW && lastHeight==pixelsH && lastSize==buttonSize && lastControlsTop==controlsTop)) return;
         releaseControls(); presses.clear();
         if (controls != null) mLayout.removeView(controls);
-        lastWidth = pixelsW; lastHeight = pixelsH; lastSize = buttonSize;
+        lastWidth = pixelsW; lastHeight = pixelsH; lastSize = buttonSize; lastControlsTop = controlsTop;
         float density = getResources().getDisplayMetrics().density;
         int width = (int)(pixelsW/density), height = (int)(pixelsH/density);
-        TouchControls.Layout layout = new TouchControls.Layout(width, height, buttonSize);
+        TouchControls.Layout layout = new TouchControls.Layout(width, height, buttonSize, height>width?controlsTop:100);
         // Full game surface: controls no longer reserve or shrink a bottom strip.
         mSurface.setLayoutParams(new RelativeLayout.LayoutParams(-1,-1));
         controls = new RelativeLayout(this); controls.setMotionEventSplittingEnabled(true);
@@ -202,11 +226,13 @@ public class GameActivity extends SDLActivity {
     private void showMore() {
         releaseControls();
         new AlertDialog.Builder(this).setTitle("设置")
-            .setItems(new String[]{"按键透明度", "按键大小", "地图视野", "按键说明", "返回游戏列表"},(d,which)-> {
+            .setItems(new String[]{"按键透明度", "按键大小", "地图视野", "竖屏布局", "屏幕方向", "按键说明", "返回游戏列表"},(d,which)-> {
                 if(which==0)showTouchSlider(false);
                 else if(which==1)showTouchSlider(true);
                 else if(which==2)showMapView();
-                else if(which==3)new AlertDialog.Builder(this).setTitle("任天堂布局")
+                else if(which==3)showPortraitLayout();
+                else if(which==4)showGameOrientation();
+                else if(which==5)new AlertDialog.Builder(this).setTitle("任天堂布局")
                     .setMessage("左侧十字键：按住移动，滑动换向。\nA：确认／对话继续；B：返回／游戏菜单；X：发起对话；Y：卸装。\n选项左／右：购买框切换是／否。说明上页／下页：P／N。购买物品说明也可用十字键左右翻页。\n答题：十字键选答案，A 确认，B 结束答题。遇到输入题，X 打开键盘，Y 删除。")
                     .setPositiveButton("知道了",null).show();
                 else new AlertDialog.Builder(this).setTitle("返回游戏列表？")
@@ -214,6 +240,53 @@ public class GameActivity extends SDLActivity {
                     .setPositiveButton("返回列表",(a,b)->finish()).setNegativeButton("继续游戏",null).show();
             }).show();
     }
+    private void showGameOrientation() {
+        new AlertDialog.Builder(this).setTitle("屏幕方向")
+            .setSingleChoiceItems(new String[]{"跟随系统", "竖屏", "横屏"}, savedOrientation(), (dialog, which) -> {
+                getPreferences(MODE_PRIVATE).edit().putInt("game_orientation", which).apply();
+                dialog.dismiss();
+                setRequestedOrientation(ORIENTATIONS[which]);
+            }).setNegativeButton("取消", null).show();
+    }
+
+    private void setPortraitControlsTop(int top) {
+        controlsTop = top;
+        layoutControls();
+    }
+
+    private void showPortraitLayout() {
+        int previousGameTop = savedGameTop();
+        int previousControlsTop = controlsTop;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(20), dp(8), dp(20), 0);
+        SeekBar picture = dimensionSlider(box, "游戏画面距顶部（%）", 0, 100, previousGameTop, this::previewGameTop);
+        SeekBar buttons = dimensionSlider(box, "虚拟键距顶部（%）", 0, 100, previousControlsTop, this::setPortraitControlsTop);
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(box);
+        Runnable restore = () -> {
+            nativeGameTop(previousGameTop);
+            setPortraitControlsTop(previousControlsTop);
+        };
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("竖屏布局").setView(scroll)
+            .setPositiveButton("保存", null).setNegativeButton("取消", (d,w)->restore.run())
+            .setOnCancelListener(d->restore.run()).create();
+        dialog.show();
+        if (mLayout.getHeight()>mLayout.getWidth() && dialog.getWindow()!=null)
+            dialog.getWindow().setDimAmount(0.15f);
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(button -> {
+            if (!nativeGameTop(picture.getProgress())) {
+                Toast.makeText(this, "游戏暂未就绪，请稍后重试", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            getPreferences(MODE_PRIVATE).edit().putInt("portrait_game_top", picture.getProgress())
+                .putInt("portrait_controls_top", buttons.getProgress()).apply();
+            dialog.dismiss();
+        });
+    }
+
+    private void previewGameTop(int percent) { nativeGameTop(percent); }
+
     private void showMapView() {
         SharedPreferences prefs = getPreferences(MODE_PRIVATE);
         LinearLayout box = new LinearLayout(this);
@@ -224,10 +297,10 @@ public class GameActivity extends SDLActivity {
         original.setChecked(prefs.getBoolean("map_original_view", true));
         box.addView(original);
 
-        SeekBar cols = mapDimensionSlider(box, "宽度（列）", MIN_COLS, MAX_COLS,
-            savedMapDimension(prefs, "map_cols", DEFAULT_COLS, MIN_COLS, MAX_COLS));
-        SeekBar rows = mapDimensionSlider(box, "高度（行）", MIN_ROWS, MAX_ROWS,
-            savedMapDimension(prefs, "map_rows", DEFAULT_ROWS, MIN_ROWS, MAX_ROWS));
+        SeekBar cols = dimensionSlider(box, "宽度（列）", MIN_COLS, MAX_COLS,
+            savedMapDimension(prefs, "map_cols", DEFAULT_COLS, MIN_COLS, MAX_COLS),null);
+        SeekBar rows = dimensionSlider(box, "高度（行）", MIN_ROWS, MAX_ROWS,
+            savedMapDimension(prefs, "map_rows", DEFAULT_ROWS, MIN_ROWS, MAX_ROWS),null);
         cols.setEnabled(!original.isChecked());
         rows.setEnabled(!original.isChecked());
         original.setOnCheckedChangeListener((button, checked) -> {
@@ -254,7 +327,10 @@ public class GameActivity extends SDLActivity {
         });
     }
 
-    private SeekBar mapDimensionSlider(LinearLayout box, String label, int min, int max, int current) {
+    private interface SliderPreview { void update(int value); }
+
+    private SeekBar dimensionSlider(LinearLayout box, String label, int min, int max, int current,
+                                    SliderPreview preview) {
         TextView value = new TextView(this);
         value.setText(label + "  " + current);
         box.addView(value);
@@ -265,7 +341,9 @@ public class GameActivity extends SDLActivity {
         box.addView(slider, new LinearLayout.LayoutParams(-1, dp(48)));
         slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
-                value.setText(label + "  " + (min+progress));
+                int selected = min+progress;
+                value.setText(label + "  " + selected);
+                if (preview != null) preview.update(selected);
             }
             @Override public void onStartTrackingTouch(SeekBar bar) {}
             @Override public void onStopTrackingTouch(SeekBar bar) {}

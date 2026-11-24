@@ -9,7 +9,7 @@
             </intent-filter>
         </activity>
         <activity android:name=".GameActivity" android:exported="false"
-            android:screenOrientation="sensorLandscape"
+            android:screenOrientation="fullUser"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode|navigation|density"
             android:launchMode="singleTop" />
     </application>
