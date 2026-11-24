@@ -36,6 +36,7 @@ public class GameActivity extends SDLActivity {
     private Pad pad;
     private int lastWidth, lastHeight, lastSize, lastControlsTop;
     private int transparency = 35, buttonSize = 100;
+    private boolean touchControlsVisible = true;
     private static final int CENTER_GAME_TOP = 101;
     private final int[] controlsTop = {100,62};
     private static final int DEFAULT_GAME_TOP = 8, DEFAULT_CONTROLS_TOP = 62;
@@ -88,6 +89,7 @@ public class GameActivity extends SDLActivity {
         if (mLayout == null || mSurface == null) return;
         transparency = Math.max(0, Math.min(90, getPreferences(0).getInt("touch_transparency", 35)));
         buttonSize = TouchControls.clampSize(getPreferences(0).getInt("touch_size", 100));
+        touchControlsVisible = getPreferences(MODE_PRIVATE).getBoolean("touch_controls_visible", true);
         controlsTop[1] = savedMapDimension(getPreferences(MODE_PRIVATE), "portrait_controls_top", DEFAULT_CONTROLS_TOP, 0, 100);
         controlsTop[0] = savedMapDimension(getPreferences(MODE_PRIVATE), "landscape_controls_top", 100, 0, 100);
         setRequestedOrientation(ORIENTATIONS[savedOrientation()]);
@@ -157,7 +159,8 @@ public class GameActivity extends SDLActivity {
         utility("说明上页",8,width-12-layout.utilityUnit*2,layout.utilityTop,layout.utilityUnit,layout.utilityHeight);
         utility("说明下页",9,width-12-layout.utilityUnit,layout.utilityTop,layout.utilityUnit,layout.utilityHeight);
         controls.setAlpha((100-transparency)/100f);
-        // This entry is outside the faded controls, so settings remain reachable.
+        controls.setVisibility(touchControlsVisible ? View.VISIBLE : View.GONE);
+        // Keep settings reachable when the controls are hidden.
         Button more = key("更多",0xff343b48,false);
         more.setOnClickListener(v -> showMore());
         RelativeLayout.LayoutParams menu = new RelativeLayout.LayoutParams(dp(72),dp(48));
@@ -230,16 +233,25 @@ public class GameActivity extends SDLActivity {
             paint.setColor(0xff657181);canvas.drawCircle(center,center,unit*.1f,paint);
         }
     }
+    private void toggleTouchControls() {
+        touchControlsVisible = !touchControlsVisible;
+        releaseControls();
+        controls.setVisibility(touchControlsVisible ? View.VISIBLE : View.GONE);
+        getPreferences(MODE_PRIVATE).edit().putBoolean("touch_controls_visible", touchControlsVisible).apply();
+    }
+
     private void showMore() {
         releaseControls();
+        String toggleLabel = touchControlsVisible ? "隐藏虚拟按键" : "显示虚拟按键";
         new AlertDialog.Builder(this).setTitle("设置")
-            .setItems(new String[]{"按键透明度", "按键大小", "地图视野", "布局", "屏幕方向", "按键说明", "返回游戏列表"},(d,which)-> {
-                if(which==0)showTouchSlider(false);
-                else if(which==1)showTouchSlider(true);
-                else if(which==2)showMapView();
-                else if(which==3)showLayoutSettings();
-                else if(which==4)showGameOrientation();
-                else if(which==5)new AlertDialog.Builder(this).setTitle("任天堂布局")
+            .setItems(new String[]{toggleLabel, "按键透明度", "按键大小", "地图视野", "布局", "屏幕方向", "按键说明", "返回游戏列表"},(d,which)-> {
+                if(which==0)toggleTouchControls();
+                else if(which==1)showTouchSlider(false);
+                else if(which==2)showTouchSlider(true);
+                else if(which==3)showMapView();
+                else if(which==4)showLayoutSettings();
+                else if(which==5)showGameOrientation();
+                else if(which==6)new AlertDialog.Builder(this).setTitle("任天堂布局")
                     .setMessage("左侧十字键：按住移动，滑动换向。\nA：确认／对话继续；B：返回／游戏菜单；X：发起对话；Y：卸装。\n选项左／右：购买框切换是／否。说明上页／下页：P／N。购买物品说明也可用十字键左右翻页。\n答题：十字键选答案，A 确认，B 结束答题。遇到输入题，X 打开键盘，Y 删除。")
                     .setPositiveButton("知道了",null).show();
                 else new AlertDialog.Builder(this).setTitle("返回游戏列表？")
