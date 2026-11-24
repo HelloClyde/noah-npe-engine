@@ -30,9 +30,12 @@ import org.libsdl.app.SDLActivity;
 import java.util.ArrayList;
 
 public class GameActivity extends SDLActivity {
-    private final Handler repeats = new Handler(Looper.getMainLooper());
+    private static final long MORE_TIMEOUT_MS = 5000;
+    private final Handler uiHandler = new Handler(Looper.getMainLooper());
     private final ArrayList<Press> presses = new ArrayList<>();
     private RelativeLayout controls;
+    private Button moreButton;
+    private final Runnable hideMoreButton = () -> moreButton.setVisibility(View.GONE);
     private Pad pad;
     private int lastWidth, lastHeight, lastSize, lastControlsTop;
     private int transparency = 35, buttonSize = 100;
@@ -161,14 +164,31 @@ public class GameActivity extends SDLActivity {
         controls.setAlpha((100-transparency)/100f);
         controls.setVisibility(touchControlsVisible ? View.VISIBLE : View.GONE);
         // Keep settings reachable when the controls are hidden.
-        Button more = key("更多",0xff343b48,false);
-        more.setOnClickListener(v -> showMore());
-        RelativeLayout.LayoutParams menu = new RelativeLayout.LayoutParams(dp(72),dp(48));
-        menu.addRule(RelativeLayout.ALIGN_PARENT_TOP); menu.addRule(RelativeLayout.CENTER_HORIZONTAL);
-        menu.topMargin = dp(4);
-        View old = mLayout.findViewWithTag("touch-more"); if (old != null) mLayout.removeView(old);
-        more.setTag("touch-more"); mLayout.addView(more,menu);
+        if (moreButton == null) {
+            moreButton = key("更多",0xff343b48,false);
+            moreButton.setOnClickListener(v -> showMore());
+            RelativeLayout.LayoutParams menu = new RelativeLayout.LayoutParams(dp(72),dp(48));
+            menu.addRule(RelativeLayout.ALIGN_PARENT_TOP); menu.addRule(RelativeLayout.CENTER_HORIZONTAL);
+            menu.topMargin = dp(4);
+            mLayout.addView(moreButton,menu);
+            if (hasWindowFocus()) revealMoreButton();
+        } else {
+            moreButton.bringToFront();
+        }
         mSurface.requestFocus();
+    }
+
+    private void revealMoreButton() {
+        if (moreButton == null) return;
+        moreButton.setVisibility(View.VISIBLE);
+        uiHandler.removeCallbacks(hideMoreButton);
+        uiHandler.postDelayed(hideMoreButton, MORE_TIMEOUT_MS);
+    }
+
+    @Override public boolean dispatchTouchEvent(MotionEvent event) {
+        boolean handled = super.dispatchTouchEvent(event);
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN) revealMoreButton();
+        return handled;
     }
     private Button key(String text,int color,boolean round) {
         Button key = new Button(this); key.setText(text); key.setTextSize(round?13:12);
@@ -205,10 +225,10 @@ public class GameActivity extends SDLActivity {
         final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
         final TouchControls.DirectionPad input=new TouchControls.DirectionPad(GameActivity::nativeButton);
         final Runnable repeat=new Runnable() { public void run() {
-            if(input.direction<0)return;input.repeat();repeats.postDelayed(this,100);
+            if(input.direction<0)return;input.repeat();uiHandler.postDelayed(this,100);
         }};
         Pad() { super(GameActivity.this);setContentDescription("方向键：按住移动，滑动换向");setFocusable(false); }
-        void release() { repeats.removeCallbacks(repeat);input.cancel();invalidate(); }
+        void release() { uiHandler.removeCallbacks(repeat);input.cancel();invalidate(); }
         @Override public boolean onTouchEvent(MotionEvent e) {
             int before=input.direction,type=e.getActionMasked();
             if(type==MotionEvent.ACTION_DOWN)input.down(e.getPointerId(0),e.getX(),e.getY(),getWidth(),getHeight());
@@ -216,7 +236,7 @@ public class GameActivity extends SDLActivity {
                 int i=e.findPointerIndex(input.pointer);if(i>=0)input.move(input.pointer,e.getX(i),e.getY(i),getWidth(),getHeight());else input.cancel();
             } else if(type==MotionEvent.ACTION_UP || type==MotionEvent.ACTION_POINTER_UP)input.up(e.getPointerId(e.getActionIndex()));
             else if(type==MotionEvent.ACTION_CANCEL)input.cancel();
-            if(before!=input.direction) { repeats.removeCallbacks(repeat);if(input.direction>=0)repeats.postDelayed(repeat,300); }
+            if(before!=input.direction) { uiHandler.removeCallbacks(repeat);if(input.direction>=0)uiHandler.postDelayed(repeat,300); }
             invalidate();return true;
         }
         @Override protected void onDraw(Canvas canvas) {
@@ -417,8 +437,19 @@ public class GameActivity extends SDLActivity {
             .setOnCancelListener(d->previewTouchSetting(size,previous)).show();
     }
     private void releaseControls() {
-        repeats.removeCallbacksAndMessages(null);if(pad!=null)pad.release();for(Press press:presses)press.release();
+        if(pad!=null)pad.release();for(Press press:presses)press.release();
     }
-    @Override public void onWindowFocusChanged(boolean focus) { super.onWindowFocusChanged(focus);if(!focus)releaseControls(); }
-    @Override protected void onPause() { releaseControls();super.onPause(); }
+    @Override public void onWindowFocusChanged(boolean focus) {
+        super.onWindowFocusChanged(focus);
+        if (focus) revealMoreButton();
+        else {
+            uiHandler.removeCallbacks(hideMoreButton);
+            releaseControls();
+        }
+    }
+    @Override protected void onPause() {
+        uiHandler.removeCallbacks(hideMoreButton);
+        releaseControls();
+        super.onPause();
+    }
 }
