@@ -16,23 +16,27 @@
 #include "mobile_input.inc"
 #include "window_scale.inc"
 #if defined(__ANDROID__) || defined(NPE_MOBILE_INPUT_TEST)
-static unsigned game_mobile_top=8;
+enum { NPE_MOBILE_TOP_CENTER=101 };
+static unsigned game_mobile_top[2]={NPE_MOBILE_TOP_CENTER,8};
 #endif
 static void game_present_texture(SDL_Renderer *renderer,SDL_Texture *texture,int width,int height){
     SDL_RenderSetLogicalSize(renderer,width,height);
 #if defined(__ANDROID__) || defined(NPE_MOBILE_INPUT_TEST)
     int output_width,output_height;
-    if(!SDL_GetRendererOutputSize(renderer,&output_width,&output_height) && output_height>output_width){
-        SDL_Rect viewport;
-        float sx,sy;
-        SDL_RenderGetScale(renderer,&sx,&sy);
-        SDL_RenderSetScale(renderer,1,1);
-        SDL_RenderGetViewport(renderer,&viewport);
-        int top=(int)((int64_t)output_height*game_mobile_top/100);
-        int max_top=output_height-viewport.h;
-        viewport.y=SDL_clamp(top,0,max_top>0?max_top:0);
-        SDL_RenderSetViewport(renderer,&viewport);
-        SDL_RenderSetScale(renderer,sx,sy);
+    if(!SDL_GetRendererOutputSize(renderer,&output_width,&output_height)){
+        unsigned percent=game_mobile_top[output_height>output_width];
+        if(percent<=100){
+            SDL_Rect viewport;
+            float sx,sy;
+            SDL_RenderGetScale(renderer,&sx,&sy);
+            SDL_RenderSetScale(renderer,1,1);
+            SDL_RenderGetViewport(renderer,&viewport);
+            int top=(int)((int64_t)output_height*percent/100);
+            int max_top=output_height-viewport.h;
+            viewport.y=SDL_clamp(top,0,max_top>0?max_top:0);
+            SDL_RenderSetViewport(renderer,&viewport);
+            SDL_RenderSetScale(renderer,sx,sy);
+        }
     }
 #endif
     SDL_RenderClear(renderer);
@@ -96,7 +100,10 @@ static int game_host_event(SDL_Event *event){
     }
     if(event->type==SDL_USEREVENT && event->user.code==NPE_MOBILE_TOP_EVENT){
         unsigned top=(unsigned)(uintptr_t)event->user.data1;
-        if(top<=100&&top!=game_mobile_top){game_mobile_top=top;game_mobile_redraw();}
+        unsigned portrait=event->user.data2!=NULL;
+        if(top<=NPE_MOBILE_TOP_CENTER&&top!=game_mobile_top[portrait]){
+            game_mobile_top[portrait]=top;game_mobile_redraw();
+        }
         return 0;
     }
 #endif
@@ -3569,7 +3576,9 @@ static int run(int argc, char **argv) {
 #ifdef __ANDROID__
         unsigned view=game_mobile_saved_setting("savedMapView",0);
         unsigned top=game_mobile_saved_setting("savedGameTop",8);
-        game_mobile_top=top<=100?top:8;
+        game_mobile_top[1]=top<=NPE_MOBILE_TOP_CENTER?top:8;
+        top=game_mobile_saved_setting("savedLandscapeGameTop",NPE_MOBILE_TOP_CENTER);
+        game_mobile_top[0]=top<=NPE_MOBILE_TOP_CENTER?top:NPE_MOBILE_TOP_CENTER;
         game_mobile_apply_view(view>>16,view&0xffffu);
 #endif
         if(!SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER))game_pad_open();

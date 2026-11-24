@@ -32,11 +32,12 @@ JNIEXPORT jboolean JNICALL Java_com_helloclyde_npe_GameActivity_nativeMapView(
     return SDL_PushEvent(&event)==1?JNI_TRUE:JNI_FALSE;
 }
 JNIEXPORT jboolean JNICALL Java_com_helloclyde_npe_GameActivity_nativeGameTop(
-        JNIEnv *env,jclass cls,jint top) {
+        JNIEnv *env,jclass cls,jint top,jboolean portrait) {
     (void)env;(void)cls;
     SDL_Event event;SDL_zero(event);event.type=SDL_USEREVENT;
     event.user.code=NPE_MOBILE_TOP_EVENT;
     event.user.data1=(void *)(uintptr_t)(unsigned)top;
+    event.user.data2=(void *)(uintptr_t)(portrait?1:0);
     return SDL_PushEvent(&event)==1?JNI_TRUE:JNI_FALSE;
 }
 static unsigned game_mobile_saved_setting(const char *name,unsigned fallback){

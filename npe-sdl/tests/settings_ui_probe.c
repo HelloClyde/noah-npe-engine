@@ -80,7 +80,7 @@ int main(int argc,char **argv){
     uint8_t lcd[NPE_WIDTH*NPE_HEIGHT]={0};
     draw_pixels(portrait_renderer,portrait_texture,lcd);
     SDL_Event position={0};position.type=SDL_USEREVENT;position.user.code=NPE_MOBILE_TOP_EVENT;
-    position.user.data1=(void *)(uintptr_t)30;
+    position.user.data1=(void *)(uintptr_t)30;position.user.data2=(void *)(uintptr_t)1;
     assert(!game_host_event(&position));
     SDL_RenderSetScale(portrait_renderer,1,1);
     SDL_Rect viewport;SDL_RenderGetViewport(portrait_renderer,&viewport);
@@ -89,9 +89,21 @@ int main(int argc,char **argv){
     assert(!game_host_event(&position));
     SDL_RenderSetScale(portrait_renderer,1,1);SDL_RenderGetViewport(portrait_renderer,&viewport);
     assert(viewport.y==470 && viewport.y+viewport.h==620);
+    SDL_SetWindowSize(portrait,600,400);
+    draw_pixels(portrait_renderer,portrait_texture,lcd);
+    SDL_RenderSetScale(portrait_renderer,1,1);SDL_RenderGetViewport(portrait_renderer,&viewport);
+    assert(viewport.y==50 && viewport.h==300);
+    position.user.data1=(void *)(uintptr_t)15;position.user.data2=NULL;
+    assert(!game_host_event(&position) && game_mobile_top[1]==100);
+    SDL_RenderSetScale(portrait_renderer,1,1);SDL_RenderGetViewport(portrait_renderer,&viewport);
+    assert(viewport.y==60 && viewport.h==300);
+    position.user.data1=(void *)(uintptr_t)NPE_MOBILE_TOP_CENTER;
+    assert(!game_host_event(&position));
+    SDL_RenderSetScale(portrait_renderer,1,1);SDL_RenderGetViewport(portrait_renderer,&viewport);
+    assert(viewport.y==50);
     SDL_DestroyTexture(portrait_texture);SDL_DestroyRenderer(portrait_renderer);SDL_DestroyWindow(portrait);
-    last_pixel_renderer=NULL;last_native_texture=NULL;game_mobile_top=8;
-    puts("Portrait picture top: live movement and lower screen boundary verified");
+    last_pixel_renderer=NULL;last_native_texture=NULL;game_mobile_top[1]=8;
+    puts("Portrait and landscape picture positioning: live movement, centering and separate offsets verified");
     if(argc==3){
         capture_ui=0;NpeFile file;uint8_t *data;size_t size;char error[256];
         assert(!read_file(argv[2],&data,&size)&&!npe_parse(&file,data,size,error,sizeof(error)));

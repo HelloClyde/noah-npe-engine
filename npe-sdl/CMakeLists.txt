@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(noah_npe_engine VERSION 0.2.16 LANGUAGES C)
+project(noah_npe_engine VERSION 0.2.17 LANGUAGES C)
 if(APPLE)
   enable_language(OBJC)
 endif()
