@@ -59,7 +59,17 @@ static void game_keyboard_controls(void){
     desktop_keyboard_controls();
     SDL_StopTextInput();
 }
+#if defined(__ANDROID__) || defined(NPE_MOBILE_INPUT_TEST)
+static void game_mobile_apply_view(unsigned rows,unsigned cols);
+#endif
 static int game_host_event(SDL_Event *event){
+#if defined(__ANDROID__) || defined(NPE_MOBILE_INPUT_TEST)
+    if(event->type==SDL_USEREVENT && event->user.code==NPE_MOBILE_VIEW_EVENT){
+        game_mobile_apply_view((unsigned)(uintptr_t)event->user.data1,
+                               (unsigned)(uintptr_t)event->user.data2);
+        return 0;
+    }
+#endif
     if(event->type==SDL_USEREVENT && event->user.code==0x4e50455a){
         game_window_scale((unsigned)(uintptr_t)event->user.data1);return 0;
     }
@@ -158,6 +168,9 @@ static int load_native_fonts(NpeFont *font) {
 static void draw_pixels(SDL_Renderer *renderer, SDL_Texture *texture,
                         const uint8_t pixels[NPE_WIDTH * NPE_HEIGHT]);
 static SDL_Renderer *last_pixel_renderer;
+#if defined(__ANDROID__) || defined(NPE_MOBILE_INPUT_TEST)
+static SDL_Texture *last_native_texture;
+#endif
 static uint8_t last_pixel_frame[NPE_WIDTH*NPE_HEIGHT];
 /*03:4050 ->4F:D530 ->4E:F282 exits on the timer message or the
   keyboard scan flag (44:E528 ->4F:4C34). Consume the dismissing key
@@ -1449,13 +1462,8 @@ static void show_quiz_question(SDL_Window *window, SDL_Renderer *renderer,
 #endif
 }
 
-static void draw_pixels(SDL_Renderer *renderer, SDL_Texture *texture,
-                        const uint8_t pixels[NPE_WIDTH * NPE_HEIGHT]) {
-    shop_frame_valid=0;
-    world_map_frame_valid=0;
-    world_map_frame_uncommitted=0;
-    world_map_frame_submit_pending=0;
-    system_menu_frame_valid=0;
+static void present_pixels(SDL_Renderer *renderer,SDL_Texture *texture,const uint8_t *pixels){
+    if(game_view_present(renderer,pixels)){game_scale_texture=game_view_texture;return;}
     uint32_t rgba[NPE_WIDTH * NPE_HEIGHT];
     unsigned i;
     /* Approximate green LCD ramp; exact LCD PWM is not emulated. */
@@ -1466,17 +1474,36 @@ static void draw_pixels(SDL_Renderer *renderer, SDL_Texture *texture,
         uint32_t blue = 161 - value * 119 / 15;
         rgba[i] = 0xff000000u | red << 16 | green << 8 | blue;
     }
-    if(pixels!=last_pixel_frame)memcpy(last_pixel_frame,pixels,sizeof(last_pixel_frame));
-    last_pixel_renderer=renderer;
-    if(game_view_present(renderer,pixels)){game_scale_texture=game_view_texture;return;}
     SDL_RenderSetLogicalSize(renderer,NPE_WIDTH,NPE_HEIGHT);
     game_scale_texture=texture;
     SDL_UpdateTexture(texture, NULL, rgba, NPE_WIDTH * (int)sizeof(uint32_t));
     SDL_RenderClear(renderer);
     SDL_RenderCopy(renderer, texture, NULL, NULL);
+    SDL_RenderPresent(renderer);
+}
+#if defined(__ANDROID__) || defined(NPE_MOBILE_INPUT_TEST)
+static void game_mobile_apply_view(unsigned rows,unsigned cols){
+    if(!settings_view_valid(rows,cols)||(settings.rows==rows&&settings.cols==cols))return;
+    settings.rows=rows;
+    settings.cols=cols;
+    game_view_map=0;
+    if(last_pixel_renderer&&last_native_texture)
+        present_pixels(last_pixel_renderer,last_native_texture,last_pixel_frame);
+}
+#endif
+static void draw_pixels(SDL_Renderer *renderer, SDL_Texture *texture,
+                        const uint8_t pixels[NPE_WIDTH * NPE_HEIGHT]) {
+    shop_frame_valid=0;
+    world_map_frame_valid=0;
+    world_map_frame_uncommitted=0;
+    world_map_frame_submit_pending=0;
+    system_menu_frame_valid=0;
     if(pixels!=last_pixel_frame)memcpy(last_pixel_frame,pixels,sizeof(last_pixel_frame));
     last_pixel_renderer=renderer;
-    SDL_RenderPresent(renderer);
+#if defined(__ANDROID__) || defined(NPE_MOBILE_INPUT_TEST)
+    last_native_texture=texture;
+#endif
+    present_pixels(renderer,texture,pixels);
 }
 static void draw_bitmap(SDL_Renderer *renderer, SDL_Texture *texture,
                         const NpeFile *file, unsigned section, unsigned index) {
@@ -2242,8 +2269,10 @@ static int show_teleport_event(SDL_Renderer *renderer,SDL_Texture *texture,
     memcpy(notice,pixels,sizeof(notice));
     if(npe_render_map_name_notice_layout(file,font,world,notice,game_view_notice_rect))return -1;
     game_view_notice_base=pixels;
-    draw_pixels(renderer,texture,notice);game_view_notice_base=NULL;
-    if(wait_timed_notice(5000))return -2;
+    draw_pixels(renderer,texture,notice);
+    int interrupted=wait_timed_notice(5000);
+    game_view_notice_base=NULL;
+    if(interrupted)return -2;
     draw_pixels(renderer,texture,pixels);
     world->map_init_pending=1;
     return result;
@@ -3221,18 +3250,19 @@ static int show_world_exit_notice(const NpeFile *file,const NpeWorld *world,
     uint8_t notice[NPE_WIDTH*NPE_HEIGHT];memcpy(notice,pixels,sizeof(notice));
     if(npe_render_map_name_notice_layout(file,font,world,notice,game_view_notice_rect))return -1;
     game_view_notice_base=pixels;
-    draw_pixels(renderer,texture,notice);game_view_notice_base=NULL;
+    draw_pixels(renderer,texture,notice);
     /* Keep a bounded automatic timeout; confirmation may dismiss earlier. */
     Uint32 deadline=SDL_GetTicks()+5000;
     for(;;){Uint32 now=SDL_GetTicks();if(SDL_TICKS_PASSED(now,deadline))break;
         SDL_Event event;
         if(game_WaitEventTimeout(&event,(int)(deadline-now))){
-            if(event.type==SDL_QUIT){SDL_PushEvent(&event);return -2;}
+            if(event.type==SDL_QUIT){game_view_notice_base=NULL;SDL_PushEvent(&event);return -2;}
             /* Web WASM runtime: confirm dismisses the map label immediately.
                Consume it here, without triggering an action on the new map. */
             if(event.type==SDL_KEYDOWN && (event.key.keysym.sym==SDLK_RETURN ||
                event.key.keysym.sym==SDLK_KP_ENTER || event.key.keysym.sym==SDLK_k))break;
         }}
+    game_view_notice_base=NULL;
     draw_pixels(renderer,texture,pixels);return 0;
 }
 
@@ -3501,6 +3531,10 @@ static int run(int argc, char **argv) {
     }
     if(SDL_WasInit(SDL_INIT_VIDEO)){
         settings_load();
+#ifdef __ANDROID__
+        unsigned view=game_mobile_saved_view();
+        game_mobile_apply_view(view>>16,view&0xffffu);
+#endif
         if(!SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER))game_pad_open();
     }
     if (read_file(argv[argc - 1], &bytes, &size)) goto done;
@@ -4421,6 +4455,10 @@ parsed_done:
     game_sound_player=NULL;
     npe_sound_close(&sound);
     game_view_close();game_view_file=NULL;game_view_world=NULL;game_view_playing=NULL;
+#if defined(__ANDROID__) || defined(NPE_MOBILE_INPUT_TEST)
+    last_native_texture=NULL;
+    last_pixel_renderer=NULL;
+#endif
     if (texture) SDL_DestroyTexture(texture);
     if (renderer) SDL_DestroyRenderer(renderer);
     desktop_menu_detach();game_scale_window=NULL;game_scale_texture=NULL;

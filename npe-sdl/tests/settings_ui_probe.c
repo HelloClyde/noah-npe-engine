@@ -96,6 +96,20 @@ int main(int argc,char **argv){
         }
         char path[2200];snprintf(path,sizeof(path),"%sexpanded-map.bmp",test_folder);assert(!SDL_SaveBMP(surface,path));SDL_FreeSurface(surface);
         uint8_t *map_before=malloc(400*232);assert(map_before);memcpy(map_before,game_view_pixels,400*232);
+        SDL_Event view_change={0};
+        view_change.type=SDL_USEREVENT;view_change.user.code=NPE_MOBILE_VIEW_EVENT;
+        view_change.user.data1=(void *)(uintptr_t)17;view_change.user.data2=(void *)(uintptr_t)31;
+        assert(!game_host_event(&view_change));
+        SDL_RenderGetLogicalSize(renderer,&width,&height);assert(width==31*16&&height==17*16+8);
+        view_change.user.data1=(void *)(uintptr_t)41;
+        assert(!game_host_event(&view_change)&&settings.rows==17&&settings.cols==31);
+        view_change.user.data1=view_change.user.data2=NULL;
+        assert(!game_host_event(&view_change));
+        SDL_RenderGetLogicalSize(renderer,&width,&height);assert(width==NPE_WIDTH&&height==NPE_HEIGHT);
+        view_change.user.data1=(void *)(uintptr_t)14;view_change.user.data2=(void *)(uintptr_t)25;
+        assert(!game_host_event(&view_change));
+        assert(!memcmp(world,before,sizeof(*world))&&!memcmp(game_view_pixels,map_before,400*232));
+        puts("Android viewport event: independent width/height apply immediately, invalid sizes ignored, original mode restores frame");
         NpeFont font={0};assert(!load_native_fonts(&font));
         const unsigned notice_views[][2]={{7,15},{25,25},{25,40}};
         for(unsigned i=0;i<3;++i){

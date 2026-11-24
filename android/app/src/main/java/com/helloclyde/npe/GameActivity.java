@@ -1,6 +1,7 @@
 package com.helloclyde.npe;
 
 import android.app.AlertDialog;
+import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.content.res.ColorStateList;
 import android.graphics.Canvas;
@@ -17,9 +18,12 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowInsets;
 import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.Toast;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.SeekBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import org.libsdl.app.SDLActivity;
 import java.util.ArrayList;
@@ -31,6 +35,23 @@ public class GameActivity extends SDLActivity {
     private Pad pad;
     private int lastWidth, lastHeight, lastSize, transparency = 35, buttonSize = 100;
     private static native void nativeButton(int action, boolean down);
+    private static native boolean nativeMapView(int rows, int cols);
+
+    private static final int MIN_ROWS = 7, MAX_ROWS = 40, DEFAULT_ROWS = 14;
+    private static final int MIN_COLS = 15, MAX_COLS = 60, DEFAULT_COLS = 25;
+
+    // Called by the SDL game thread when it loads the NPE.
+    public int savedMapView() {
+        SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        if (prefs.getBoolean("map_original_view", true)) return 0;
+        int rows = savedMapDimension(prefs, "map_rows", DEFAULT_ROWS, MIN_ROWS, MAX_ROWS);
+        int cols = savedMapDimension(prefs, "map_cols", DEFAULT_COLS, MIN_COLS, MAX_COLS);
+        return (rows << 16) | cols;
+    }
+
+    private static int savedMapDimension(SharedPreferences prefs, String key, int fallback, int min, int max) {
+        return Math.max(min, Math.min(max, prefs.getInt(key, fallback)));
+    }
     @Override protected String[] getLibraries() { return new String[]{"SDL2", "main"}; }
     @Override protected String[] getArguments() { return new String[]{getIntent().getStringExtra("game")}; }
     private int dp(float value) { return Math.round(value * getResources().getDisplayMetrics().density); }
@@ -180,11 +201,12 @@ public class GameActivity extends SDLActivity {
     }
     private void showMore() {
         releaseControls();
-        new AlertDialog.Builder(this).setTitle("触屏设置")
-            .setItems(new String[]{"按键透明度", "按键大小", "按键说明", "返回游戏列表"},(d,which)-> {
+        new AlertDialog.Builder(this).setTitle("设置")
+            .setItems(new String[]{"按键透明度", "按键大小", "地图视野", "按键说明", "返回游戏列表"},(d,which)-> {
                 if(which==0)showTouchSlider(false);
                 else if(which==1)showTouchSlider(true);
-                else if(which==2)new AlertDialog.Builder(this).setTitle("任天堂布局")
+                else if(which==2)showMapView();
+                else if(which==3)new AlertDialog.Builder(this).setTitle("任天堂布局")
                     .setMessage("左侧十字键：按住移动，滑动换向。\nA：确认／对话继续；B：返回／游戏菜单；X：发起对话；Y：卸装。\n选项左／右：购买框切换是／否。说明上页／下页：P／N。购买物品说明也可用十字键左右翻页。\n答题：十字键选答案，A 确认，B 结束答题。遇到输入题，X 打开键盘，Y 删除。")
                     .setPositiveButton("知道了",null).show();
                 else new AlertDialog.Builder(this).setTitle("返回游戏列表？")
@@ -192,6 +214,65 @@ public class GameActivity extends SDLActivity {
                     .setPositiveButton("返回列表",(a,b)->finish()).setNegativeButton("继续游戏",null).show();
             }).show();
     }
+    private void showMapView() {
+        SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(20), dp(8), dp(20), 0);
+        CheckBox original = new CheckBox(this);
+        original.setText("使用原始视野（15 列 × 7 行）");
+        original.setChecked(prefs.getBoolean("map_original_view", true));
+        box.addView(original);
+
+        SeekBar cols = mapDimensionSlider(box, "宽度（列）", MIN_COLS, MAX_COLS,
+            savedMapDimension(prefs, "map_cols", DEFAULT_COLS, MIN_COLS, MAX_COLS));
+        SeekBar rows = mapDimensionSlider(box, "高度（行）", MIN_ROWS, MAX_ROWS,
+            savedMapDimension(prefs, "map_rows", DEFAULT_ROWS, MIN_ROWS, MAX_ROWS));
+        cols.setEnabled(!original.isChecked());
+        rows.setEnabled(!original.isChecked());
+        original.setOnCheckedChangeListener((button, checked) -> {
+            cols.setEnabled(!checked);
+            rows.setEnabled(!checked);
+        });
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(box);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("地图视野").setView(scroll)
+            .setPositiveButton("保存", null).setNegativeButton("取消", null).create();
+        dialog.show();
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(button -> {
+            int selectedRows = MIN_ROWS + rows.getProgress();
+            int selectedCols = MIN_COLS + cols.getProgress();
+            boolean useOriginal = original.isChecked();
+            if (!nativeMapView(useOriginal ? 0 : selectedRows, useOriginal ? 0 : selectedCols)) {
+                Toast.makeText(this, "游戏暂未就绪，请稍后重试", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            prefs.edit().putBoolean("map_original_view", useOriginal)
+                .putInt("map_rows", selectedRows).putInt("map_cols", selectedCols).apply();
+            dialog.dismiss();
+        });
+    }
+
+    private SeekBar mapDimensionSlider(LinearLayout box, String label, int min, int max, int current) {
+        TextView value = new TextView(this);
+        value.setText(label + "  " + current);
+        box.addView(value);
+        SeekBar slider = new SeekBar(this);
+        slider.setContentDescription(label);
+        slider.setMax(max-min);
+        slider.setProgress(current-min);
+        box.addView(slider, new LinearLayout.LayoutParams(-1, dp(48)));
+        slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
+                value.setText(label + "  " + (min+progress));
+            }
+            @Override public void onStartTrackingTouch(SeekBar bar) {}
+            @Override public void onStopTrackingTouch(SeekBar bar) {}
+        });
+        return slider;
+    }
+
     private void previewTouchSetting(boolean size, int value) {
         if (size) {
             buttonSize = value;

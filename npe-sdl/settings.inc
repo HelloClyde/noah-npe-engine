@@ -22,10 +22,12 @@ static void settings_defaults(NpeSettings *value){
     memcpy(value->keys,settings_default_keys,sizeof(value->keys));
     memcpy(value->buttons,settings_default_buttons,sizeof(value->buttons));
 }
+static int settings_view_valid(unsigned rows,unsigned cols){
+    return (!rows&&!cols) || (rows>=7 && rows<=40 && cols>=15 && cols<=60);
+}
 static int settings_valid(const NpeSettings *value){
     if(value->sound_muted>1 || value->volume>100)return 0;
-    if((value->rows||value->cols) &&
-       (value->rows<7 || value->rows>40 || value->cols<15 || value->cols>60))return 0;
+    if(!settings_view_valid(value->rows,value->cols))return 0;
     for(unsigned i=0;i<SETTINGS_KEYS;++i){
         if(!value->keys[i] || value->keys[i]==SDLK_F10 || !*SDL_GetKeyName(value->keys[i]))return 0;
         for(unsigned j=0;j<i;++j)if(value->keys[j]==value->keys[i])return 0;
